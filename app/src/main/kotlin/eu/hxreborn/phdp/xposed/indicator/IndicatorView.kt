@@ -21,6 +21,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
+import android.os.SystemClock
 import android.text.TextPaint
 import android.view.DisplayCutout
 import android.view.Surface
@@ -43,6 +44,7 @@ import eu.hxreborn.phdp.xposed.hook.NetworkSpeedMonitor
 import eu.hxreborn.phdp.xposed.hook.SystemUIHook
 import eu.hxreborn.phdp.xposed.indicator.effects.EffectParams
 import eu.hxreborn.phdp.xposed.indicator.effects.FinishDrawContext
+import kotlin.math.abs
 import kotlin.math.pow
 
 class IndicatorView(
@@ -74,6 +76,27 @@ class IndicatorView(
     private val burnInHideRunnable = Runnable { invalidate() }
     private var smoothProgress: Float = 0f
     private var progressAnim: ValueAnimator? = null
+    private val progressMotion = ProgressMotion()
+    private var progressUpdateRateMs = IndicatorState.progressUpdateMs
+    private val progressFrame =
+        object : Runnable {
+            override fun run() {
+                if (IndicatorState.progressUpdateMs >= 1000) return
+                val now = SystemClock.uptimeMillis()
+                val fraction =
+                    progressMotion.frame(
+                        now,
+                        IndicatorState.progressAnimMs,
+                        IndicatorState.progressUpdateMs,
+                        IndicatorState.progressEasing,
+                    )
+                if (abs(fraction - smoothProgress) > 0.000001f) {
+                    smoothProgress = fraction
+                    invalidate()
+                }
+                if (progressMotion.needsFrame(now)) postOnAnimation(this)
+            }
+        }
 
     fun touchActivity() {
         lastActivityTime = System.currentTimeMillis()
@@ -173,7 +196,15 @@ class IndicatorView(
                 val oldValue = field
                 field = newValue
                 touchActivity()
-                animateProgressTo(newValue)
+                if (IndicatorState.progressUpdateMs < 1000) {
+                    progressAnim?.cancel()
+                    progressAnim = null
+                    progressMotion.observe(newValue, SystemClock.uptimeMillis())
+                    removeCallbacks(progressFrame)
+                    postOnAnimation(progressFrame)
+                } else {
+                    animateProgressTo(newValue)
+                }
                 logDebug { "IndicatorView: progress = $newValue" }
 
                 if (oldValue == 0 && newValue > 0) {
@@ -325,7 +356,25 @@ class IndicatorView(
                 updatePaintFromPrefs()
                 updateRenderer()
                 recalculateScaledPath()
-                smoothProgress = applyEasing(progress, IndicatorState.progressEasing)
+                val newRate = IndicatorState.progressUpdateMs
+                if (newRate != progressUpdateRateMs) {
+                    removeCallbacks(progressFrame)
+                    progressAnim?.cancel()
+                    progressAnim = null
+                    if (newRate < 1000) {
+                        progressMotion.reset(
+                            displayPercent = smoothProgress * 100f,
+                            observedPercent = progress.toFloat(),
+                            nowMs = SystemClock.uptimeMillis(),
+                        )
+                        if (progress in 1..99) postOnAnimation(progressFrame)
+                    } else {
+                        smoothProgress = applyEasing(progress, IndicatorState.progressEasing)
+                    }
+                    progressUpdateRateMs = newRate
+                } else if (newRate >= 1000) {
+                    smoothProgress = applyEasing(progress, IndicatorState.progressEasing)
+                }
                 invalidate()
             }
         }
@@ -595,6 +644,7 @@ class IndicatorView(
         animator.cancelAll()
         progressAnim?.cancel()
         progressAnim = null
+        removeCallbacks(progressFrame)
         pendingFinishRunnable?.let { removeCallbacks(it) }
         pendingFinishRunnable = null
         removeCallbacks(burnInHideRunnable)

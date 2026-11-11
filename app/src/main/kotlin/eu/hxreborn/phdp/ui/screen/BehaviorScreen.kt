@@ -432,6 +432,28 @@ fun BehaviorScreen(
                                         },
                                     )
                                 }
+                                add {
+                                    SliderPreferenceWithStepper(
+                                        value = prefsState.progressUpdateMs.toFloat(),
+                                        onValueChange = {
+                                            viewModel.savePref(Prefs.progressUpdateMs, it.toInt())
+                                        },
+                                        icon = { Icon(Icons.Outlined.FastForward, contentDescription = null) },
+                                        title = {
+                                            Text(stringResource(R.string.pref_progress_update_title))
+                                        },
+                                        valueRange = 50f..1000f,
+                                        defaultValue = Prefs.progressUpdateMs.default.toFloat(),
+                                        onReset = {
+                                            viewModel.savePref(Prefs.progressUpdateMs, Prefs.progressUpdateMs.default)
+                                        },
+                                        stepSize = 50f,
+                                        suffix = "ms",
+                                        summary = {
+                                            Text(stringResource(R.string.pref_progress_update_summary))
+                                        },
+                                    )
+                                }
                             },
                     )
                 }

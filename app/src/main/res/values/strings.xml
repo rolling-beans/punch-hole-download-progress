@@ -293,6 +293,8 @@
     <string name="pref_burn_in_hide_summary">Time before the ring hides without activity or progress</string>
     <string name="pref_progress_anim_title">Progress smoothness</string>
     <string name="pref_progress_anim_summary">How long the arc takes to catch up when progress changes</string>
+    <string name="pref_progress_update_title">Progress update rate</string>
+    <string name="pref_progress_update_summary">Visual update interval. Below 1000 ms, estimates intermediate progress from notifications (up to 2% ahead); actual updates depend on the source app</string>
     <string name="pref_font_size_title">Font size</string>
     <string name="pref_bold_title">Bold</string>
     <string name="pref_italic_title">Italic</string>
