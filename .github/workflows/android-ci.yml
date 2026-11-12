@@ -9,8 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      SIGNED: ${{ (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && github.actor != 'dependabot[bot]' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -20,34 +18,16 @@ jobs:
           java-version: 21
           cache: gradle
 
-      - name: Decode keystore
-        if: env.SIGNED == 'true'
-        run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > ${{ github.workspace }}/release.keystore
-
       - name: Test
         run: ./gradlew test
 
-      - name: Build
-        run: |
-          if [ "$SIGNED" = "true" ]; then
-            ./gradlew assembleDebug assembleRelease
-          else
-            ./gradlew assembleDebug
-          fi
-        env:
-          RELEASE_STORE_FILE: ${{ github.workspace }}/release.keystore
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+      # Release signing belongs to the explicit Build/release workflow.
+      # Forks and pull requests must be testable without signing secrets.
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
           name: debug-apk
           path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload release APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-apk
-          path: app/build/outputs/apk/release/*.apk
