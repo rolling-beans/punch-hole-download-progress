@@ -22,7 +22,11 @@ internal class ProgressMotion {
     private var lastSampleMs = -1L
     private var observationGapMs = 1000L
 
-    fun reset(displayPercent: Float = 0f, observedPercent: Float = 0f, nowMs: Long = 0L) {
+    fun reset(
+        displayPercent: Float = 0f,
+        observedPercent: Float = 0f,
+        nowMs: Long = 0L,
+    ) {
         displayed = displayPercent.coerceIn(0f, 100f)
         observed = observedPercent.coerceIn(0f, 100f)
         target = observed
@@ -34,7 +38,10 @@ internal class ProgressMotion {
         lastSampleMs = -1L
     }
 
-    fun observe(percent: Int, nowMs: Long) {
+    fun observe(
+        percent: Int,
+        nowMs: Long,
+    ) {
         if (lastObservationMs < 0) reset(nowMs = nowMs)
         val value = percent.coerceIn(0, 100).toFloat()
         val gap = (nowMs - lastObservationMs).coerceAtLeast(0L)
@@ -56,7 +63,12 @@ internal class ProgressMotion {
         }
     }
 
-    fun frame(nowMs: Long, smoothnessMs: Int, updateRateMs: Int, easing: String = "linear"): Float {
+    fun frame(
+        nowMs: Long,
+        smoothnessMs: Int,
+        updateRateMs: Int,
+        easing: String = "linear",
+    ): Float {
         if (lastFrameMs < 0L) lastFrameMs = nowMs
         if (lastSampleMs < 0L || nowMs - lastSampleMs >= updateRateMs.coerceAtLeast(1)) {
             target = prediction(nowMs)
@@ -70,12 +82,13 @@ internal class ProgressMotion {
         } else if (elapsedSeconds > 0f) {
             // Exact solution of x'' + 2ωx' + ω²(x-target) = 0 for fixed target.
             // No re-starting of tweens: position and velocity survive target updates.
-            val response = when (easing) {
-                "accelerate" -> 0.8f
-                "decelerate" -> 1.2f
-                "ease_in_out" -> 0.95f
-                else -> 1f
-            }
+            val response =
+                when (easing) {
+                    "accelerate" -> 0.8f
+                    "decelerate" -> 1.2f
+                    "ease_in_out" -> 0.95f
+                    else -> 1f
+                }
             // 95% step settling time for critical damping: (1 + ωT)e^(-ωT) ≈ .05.
             val omega = (4.744f * 1000f / smoothnessMs) * response
             val offset = displayed - target
@@ -90,8 +103,10 @@ internal class ProgressMotion {
 
     fun needsFrame(nowMs: Long): Boolean =
         abs(displayed - target) > 0.005f || abs(velocity) > 0.01f ||
-            (observedRate > 0f && observed in 1f..99f &&
-                nowMs - lastObservationMs < predictionHorizonMs())
+            (
+                observedRate > 0f && observed in 1f..99f &&
+                    nowMs - lastObservationMs < predictionHorizonMs()
+            )
 
     private fun prediction(nowMs: Long): Float {
         if (observed !in 1f..99f || observedRate <= 0f) return observed
@@ -101,8 +116,7 @@ internal class ProgressMotion {
         return (observed + lead).coerceAtMost(99.99f)
     }
 
-    private fun predictionHorizonMs(): Long =
-        (observationGapMs * 5L / 4L).coerceIn(400L, 2_000L)
+    private fun predictionHorizonMs(): Long = (observationGapMs * 5L / 4L).coerceIn(400L, 2_000L)
 
     private companion object {
         const val MAX_LEAD_PERCENT = 2f
