@@ -18,6 +18,24 @@ public final class ProgressCurve {
     private ProgressCurve() {
     }
 
+    /**
+     * Convert the elapsed fraction of the remaining portion into progress units.
+     * The first notification contains the exact initial percent; 100% is only
+     * published when the selected duration has actually elapsed.
+     */
+    public static int progressUnits(int initialPercent, long elapsedMs,
+            long durationMs, int mode) {
+        if (initialPercent < 0 || initialPercent > 99) {
+            throw new IllegalArgumentException("initialPercent must be 0..99");
+        }
+        double remainingFraction = fraction(elapsedMs, durationMs, mode);
+        if (elapsedMs >= durationMs) {
+            return 10000;
+        }
+        double percent = initialPercent + (100d - initialPercent) * remainingFraction;
+        return Math.min(9999, (int) Math.round(percent * 100d));
+    }
+
     public static double fraction(long elapsedMs, long durationMs, int mode) {
         if (durationMs <= 0) {
             throw new IllegalArgumentException("durationMs must be positive");

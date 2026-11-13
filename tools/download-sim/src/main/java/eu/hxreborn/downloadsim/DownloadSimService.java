@@ -21,6 +21,7 @@ public class DownloadSimService extends Service {
     public static final String EXTRA_DURATION_MS = "duration_ms";
     public static final String EXTRA_UPDATE_MS = "update_ms";
     public static final String EXTRA_MODE = "mode";
+    public static final String EXTRA_INITIAL_PERCENT = "initial_percent";
 
     private static final int NOTIF_BASE = 4242;
     private static final int MAX_DOWNLOADS = 5;
@@ -40,6 +41,7 @@ public class DownloadSimService extends Service {
 
     private boolean timed;
     private int mode = ProgressCurve.MODE_CONSTANT;
+    private int initialPercent;
     private long durationMs;
     private long updateMs;
     private long startedAtMs;
@@ -72,16 +74,19 @@ public class DownloadSimService extends Service {
         mode = intent.getIntExtra(EXTRA_MODE, ProgressCurve.MODE_CONSTANT)
                 == ProgressCurve.MODE_UNEVEN
                 ? ProgressCurve.MODE_UNEVEN : ProgressCurve.MODE_CONSTANT;
+        initialPercent = Math.max(0, Math.min(99,
+                intent.getIntExtra(EXTRA_INITIAL_PERCENT, 0)));
         durationMs = Math.max(500L, Math.min(3_600_000L,
                 intent.getLongExtra(EXTRA_DURATION_MS, 30_000L)));
         updateMs = Math.max(50L, Math.min(2000L,
                 intent.getLongExtra(EXTRA_UPDATE_MS, 100L)));
         startedAtMs = SystemClock.elapsedRealtime();
-        lastPublishedUnits = 0;
+        lastPublishedUnits = initialPercent * 100;
         for (int i = 1; i < MAX_DOWNLOADS; i++) {
             nm.cancel(NOTIF_BASE + i);
         }
-        startForeground(NOTIF_BASE, buildTimed(0, 0, false),
+        // Publish the confirmed starting value immediately, with no 0% notification.
+        startForeground(NOTIF_BASE, buildTimed(lastPublishedUnits, 0, false),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         handler.post(timedTick);
     }
@@ -95,9 +100,8 @@ public class DownloadSimService extends Service {
             long now = SystemClock.elapsedRealtime();
             long elapsed = Math.min(durationMs, Math.max(0L, now - startedAtMs));
             boolean complete = elapsed >= durationMs;
-            double fraction = ProgressCurve.fraction(elapsed, durationMs, mode);
-            int units = complete ? PROGRESS_UNITS
-                    : Math.min(PROGRESS_UNITS - 1, (int) Math.round(fraction * PROGRESS_UNITS));
+            int units = ProgressCurve.progressUnits(
+                    initialPercent, elapsed, durationMs, mode);
             if (units != lastPublishedUnits || complete) {
                 lastPublishedUnits = units;
                 getSystemService(NotificationManager.class)
@@ -122,7 +126,7 @@ public class DownloadSimService extends Service {
         String title = mode == ProgressCurve.MODE_UNEVEN
                 ? "variable-speed-test.bin" : "constant-speed-test.bin";
         String content = complete ? "Complete: 100%"
-                : String.format(Locale.US, "%s: %.1f%% | %.1f / %.1f s",
+                : String.format(Locale.US, "%s: %.2f%% | %.1f / %.1f s",
                         kind, units / 100.0, elapsed / 1000.0, durationMs / 1000.0);
         return new Notification.Builder(this, SimApp.CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_download)

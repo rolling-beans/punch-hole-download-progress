@@ -3,12 +3,14 @@
     <string name="app_name">PHDP Download Sim</string>
     <string name="header">PHDP Download Sim</string>
     <string name="timed_header">Timed notification test</string>
-    <string name="hint_duration">Duration (seconds, 0.5–3600)</string>
+    <string name="hint_initial_progress">Initial progress (%, 0–99)</string>
+    <string name="invalid_initial_progress">Enter an integer from 0 to 99</string>
+    <string name="hint_duration">Remaining duration to 100% (seconds, 0.5–3600)</string>
     <string name="hint_update">Notification update interval (ms, 50–2000)</string>
     <string name="btn_constant">Start: constant speed</string>
     <string name="btn_uneven">Start: uneven speed (bursts and stall)</string>
     <string name="btn_stop">Stop simulation</string>
-    <string name="timed_note">The timer uses monotonic elapsed time and ends exactly at the specified duration. No data is downloaded. Android may throttle notifications, even when updates are requested every 100 ms. In PHDP, select this app as a progress source.</string>
+    <string name="timed_note">The first notification starts directly at the selected percentage, with no 0% frame. Duration is the time from that point to 100%. No data is downloaded. Android may throttle notifications, even if updates are requested every 100 ms. In PHDP, select this app as a progress source.</string>
     <string name="legacy_header">Legacy repeating tests</string>
     <string name="invalid_duration">Enter 0.5–3600 seconds</string>
     <string name="invalid_interval">Enter 50–2000 milliseconds</string>

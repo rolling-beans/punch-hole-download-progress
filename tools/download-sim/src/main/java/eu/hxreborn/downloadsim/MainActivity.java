@@ -13,6 +13,7 @@ public class MainActivity extends Activity {
 
     private EditText durationSeconds;
     private EditText notificationInterval;
+    private EditText initialProgress;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,6 +28,7 @@ public class MainActivity extends Activity {
 
         durationSeconds = findViewById(R.id.duration_seconds);
         notificationInterval = findViewById(R.id.notification_interval);
+        initialProgress = findViewById(R.id.initial_progress);
         findViewById(R.id.btn_constant).setOnClickListener(v ->
                 startTimed(ProgressCurve.MODE_CONSTANT));
         findViewById(R.id.btn_uneven).setOnClickListener(v ->
@@ -54,6 +56,17 @@ public class MainActivity extends Activity {
     private void startTimed(int mode) {
         final long durationMs;
         final long intervalMs;
+        final int startPercent;
+
+        try {
+            startPercent = Integer.parseInt(initialProgress.getText().toString().trim());
+            if (startPercent < 0 || startPercent > 99) {
+                throw new NumberFormatException("Out of range");
+            }
+        } catch (NumberFormatException ex) {
+            initialProgress.setError(getString(R.string.invalid_initial_progress));
+            return;
+        }
         try {
             double seconds = Double.parseDouble(durationSeconds.getText().toString()
                     .trim().replace(',', '.'));
@@ -80,6 +93,7 @@ public class MainActivity extends Activity {
                 .setAction(DownloadSimService.ACTION_TIMED_START)
                 .putExtra(DownloadSimService.EXTRA_DURATION_MS, durationMs)
                 .putExtra(DownloadSimService.EXTRA_UPDATE_MS, intervalMs)
+                .putExtra(DownloadSimService.EXTRA_INITIAL_PERCENT, startPercent)
                 .putExtra(DownloadSimService.EXTRA_MODE, mode));
     }
 
