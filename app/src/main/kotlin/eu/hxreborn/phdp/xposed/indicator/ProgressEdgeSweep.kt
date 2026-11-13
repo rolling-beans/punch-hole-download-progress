@@ -88,6 +88,25 @@ internal class ProgressEdgeSweep {
 
     fun isFinished(nowMs: Long): Boolean = active && nowMs - startedMs >= durationMs
 
+    /**
+     * Transfer an active bounded trajectory without resetting its derivatives.
+     * In particular, the completion ring may take over a still-moving ordinary
+     * progress ring. A fresh quintic replan is not always feasible at that
+     * instant, but continuing the existing segment is guaranteed continuous.
+     */
+    fun takeOver(other: ProgressEdgeSweep): Boolean {
+        if (!other.active) return false
+        active = true
+        durationMs = other.durationMs
+        startedMs = other.startedMs
+        destination = other.destination
+        initial = other.initial
+        coefficients = other.coefficients.copyOf()
+        minimumDurationMs = other.minimumDurationMs
+        queuedTarget = other.queuedTarget
+        return true
+    }
+
     fun cancel() {
         active = false
         queuedTarget = null
