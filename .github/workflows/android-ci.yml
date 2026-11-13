@@ -44,7 +44,31 @@ jobs:
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK" > "$RUNNER_TEMP/apksigner.txt"
-          grep -Fi "Signer #1 certificate SHA-256 digest: $EXPECTED_CERT_SHA256" "$RUNNER_TEMP/apksigner.txt"
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+          import sys
+
+          report = pathlib.Path(os.environ["RUNNER_TEMP"], "apksigner.txt").read_text()
+          match = re.search(
+              r"Signer #1 certificate SHA-256 digest:\s*([a-fA-F0-9:]+)",
+              report, re.IGNORECASE,
+          )
+          if not match:
+              print("Certificate digest missing in apksigner report.")
+              print("Certificate lines:", [
+                  line for line in report.splitlines()
+                  if "certificate" in line.lower() and "sha-256" in line.lower()
+              ])
+              sys.exit(1)
+          actual = match.group(1).replace(":", "").lower()
+          expected = os.environ["EXPECTED_CERT_SHA256"].replace(":", "").lower()
+          print("Signed APK certificate SHA-256:", actual)
+          if actual != expected:
+              sys.exit("Signed APK certificate does not match pinned signing key")
+          print("Verified: expected release signing certificate")
+          PY
 
       - name: Upload signed release APK
         uses: actions/upload-artifact@v7
