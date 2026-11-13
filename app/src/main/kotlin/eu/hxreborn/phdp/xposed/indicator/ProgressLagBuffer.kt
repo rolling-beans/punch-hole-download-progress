@@ -1,7 +1,6 @@
 package eu.hxreborn.phdp.xposed.indicator
 
 import kotlin.math.max
-import kotlin.math.min
 
 /**
  * A causal trailing reservoir for sparse or bursty progress notifications.
@@ -89,12 +88,20 @@ internal class ProgressLagBuffer {
         val easing = u * u * (3f - 2f * u)
         val reserve = withheld * (1f - easing)
         val candidate = (confirmed - reserve).coerceAtLeast(0f)
-        // Never command a backwards target, including after a sudden stall.
-        commanded = min(confirmed, max(max(commanded, displayed), candidate))
+        // Never command a backwards target, including when the producer
+        // reports a small regression. Permit temporary progress lead in that
+        // exceptional case rather than making the drawn ring run backwards.
+        val ceiling = if (confirmed >= 100f) 100f else 99.99f
+        commanded = max(max(commanded, displayed), candidate).coerceIn(0f, ceiling)
         return commanded
     }
 
-    fun needsCatchUp(displayed: Float): Boolean = confirmed - displayed > 0.02f
+    fun needsCatchUp(
+        displayed: Float,
+        nowMs: Long,
+    ): Boolean = lastObservationMs >= 0L &&
+        nowMs >= lastObservationMs &&
+        confirmed - displayed > 0.02f
 
     companion object {
         const val MAX_WITHHELD_PERCENT = 6f
