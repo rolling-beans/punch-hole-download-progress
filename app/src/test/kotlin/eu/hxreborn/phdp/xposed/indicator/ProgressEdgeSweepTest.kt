@@ -63,20 +63,29 @@ class ProgressEdgeSweepTest {
     }
 
     @Test
-    fun `impossible short retarget is deferred to a settled C2 boundary`() {
+    fun `late retarget preserves C2 whether accepted or deferred`() {
         val sweep = ProgressEdgeSweep()
         sweep.start(0f, 0.65f, 0L)
-        val oldDuration = sweep.durationMs
-        assertFalse(sweep.retarget(0.66f, oldDuration - 60L))
-        val end = sweep.stateAt(oldDuration)
-        assertEquals(0.65f, end.position, 0f)
-        assertEquals(0f, end.velocity, 0f)
-        assertEquals(0f, end.acceleration, 0f)
-        assertTrue(sweep.startQueued(oldDuration))
-        assertEquals(0.65f, sweep.stateAt(oldDuration).position, 0f)
-        assertEquals(0f, sweep.stateAt(oldDuration).velocity, 0f)
-        assertEquals(0.66f, sweep.valueAt(oldDuration + sweep.durationMs), 0f)
-        assertFalse(sweep.startQueued(oldDuration + sweep.durationMs))
+        val originalDuration = sweep.durationMs
+        val at = originalDuration - 60L
+        val before = sweep.stateAt(at)
+        val accepted = sweep.retarget(0.66f, at)
+        val after = sweep.stateAt(at)
+        assertEquals(before.position, after.position, 0f)
+        assertEquals(before.velocity, after.velocity, 0f)
+        assertEquals(before.acceleration, after.acceleration, 0f)
+        if (accepted) {
+            assertEquals(0.66f, sweep.valueAt(at + sweep.durationMs), 0f)
+        } else {
+            val end = sweep.stateAt(originalDuration)
+            assertEquals(0.65f, end.position, 0f)
+            assertEquals(0f, end.velocity, 0f)
+            assertEquals(0f, end.acceleration, 0f)
+            assertTrue(sweep.startQueued(originalDuration))
+            assertEquals(0.65f, sweep.stateAt(originalDuration).position, 0f)
+            assertEquals(0.66f, sweep.valueAt(originalDuration + sweep.durationMs), 0f)
+            assertFalse(sweep.startQueued(originalDuration + sweep.durationMs))
+        }
     }
 
     @Test
