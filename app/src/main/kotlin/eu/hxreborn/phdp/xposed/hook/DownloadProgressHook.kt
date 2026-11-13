@@ -14,6 +14,7 @@ object DownloadProgressHook {
     private const val EXTRA_PROGRESS = "android.progress"
     private const val EXTRA_PROGRESS_MAX = "android.progressMax"
     private const val EXTRA_TITLE = "android.title"
+    private const val SIMULATOR_PACKAGE = "eu.hxreborn.downloadsim"
     private const val STALE_AGE_MS = 5 * 60 * 1000L
     private const val SIGNIFICANT_DROP_PERCENT = 25
     private const val LOW_PROGRESS_THRESHOLD = 5
@@ -303,6 +304,13 @@ object DownloadProgressHook {
         val wasTracking = activeDownloads.remove(id) ?: return
         onActiveCountChanged?.invoke(activeDownloads.size)
         updateProgress()
+        // Stop removes the simulator's unfinished notification. It is neither
+        // a successful download nor an error: simply hide its progress ring.
+        // Keep legacy app-cancel completion semantics for other applications.
+        if (pkg == SIMULATOR_PACKAGE && wasTracking.progress < 100) {
+            logDebug { "simulator stopped progress=${wasTracking.progress} reason=$reason" }
+            return
+        }
         when {
             wasTracking.progress >= 100 -> {
                 logDebug { "complete download pkg=$pkg progress=100" }
