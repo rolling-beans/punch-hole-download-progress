@@ -22,7 +22,7 @@
 
         <service
             android:name=".DownloadSimService"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

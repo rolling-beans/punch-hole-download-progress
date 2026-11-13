@@ -13,9 +13,76 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="16dp"
             android:text="@string/header"
             android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/timed_header"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/hint_duration" />
+        <EditText
+            android:id="@+id/duration_seconds"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_duration"
+            android:inputType="numberDecimal"
+            android:singleLine="true"
+            android:text="30" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/hint_update" />
+        <EditText
+            android:id="@+id/notification_interval"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_update"
+            android:inputType="number"
+            android:singleLine="true"
+            android:text="100" />
+
+        <Button
+            android:id="@+id/btn_constant"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_constant" />
+        <Button
+            android:id="@+id/btn_uneven"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_uneven" />
+        <Button
+            android:id="@+id/btn_stop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_stop" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginTop="6dp"
+            android:text="@string/timed_note"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="@string/legacy_header"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <Button
@@ -23,13 +90,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/btn_slow" />
-
         <Button
             android:id="@+id/btn_fast"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/btn_fast" />
-
         <Button
             android:id="@+id/btn_two"
             android:layout_width="match_parent"
@@ -42,7 +107,6 @@
             android:layout_marginTop="16dp"
             android:text="@string/hint_interval"
             android:textSize="13sp" />
-
         <EditText
             android:id="@+id/interval"
             android:layout_width="match_parent"
@@ -57,7 +121,6 @@
             android:layout_marginTop="12dp"
             android:text="@string/hint_step"
             android:textSize="13sp" />
-
         <EditText
             android:id="@+id/step"
             android:layout_width="match_parent"
@@ -72,7 +135,6 @@
             android:layout_marginTop="12dp"
             android:text="@string/hint_count"
             android:textSize="13sp" />
-
         <EditText
             android:id="@+id/count"
             android:layout_width="match_parent"
