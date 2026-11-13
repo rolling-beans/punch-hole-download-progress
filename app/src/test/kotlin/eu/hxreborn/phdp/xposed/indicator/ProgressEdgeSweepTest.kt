@@ -113,4 +113,37 @@ class ProgressEdgeSweepTest {
         assertEquals(0f, sweep.valueAt(200L), 0f)
         assertEquals(0.33f, sweep.valueAt(200L + sweep.durationMs), 0f)
     }
+
+    @Test
+    fun `completion handoff inherits bounded moving segment even when retarget is unsafe`() {
+        val source = ProgressEdgeSweep()
+        source.start(0f, 0.01f, 0L)
+        val handoffAt = 15L
+        val oldFinish = source.durationMs
+        val before = source.stateAt(handoffAt)
+        val completion = ProgressEdgeSweep()
+        assertTrue(completion.takeOver(source))
+        val inherited = completion.stateAt(handoffAt)
+        assertEquals(before.position, inherited.position, 0f)
+        assertEquals(before.velocity, inherited.velocity, 0f)
+        assertEquals(before.acceleration, inherited.acceleration, 0f)
+        val accepted = completion.retarget(1f, handoffAt)
+        val after = completion.stateAt(handoffAt)
+        assertEquals(before.position, after.position, 0f)
+        assertEquals(before.velocity, after.velocity, 0f)
+        assertEquals(before.acceleration, after.acceleration, 0f)
+
+        val nextStart = if (accepted) handoffAt + completion.durationMs else oldFinish
+        for (now in handoffAt..nextStart) {
+            assertTrue(
+                "speed cap violated during handoff at $now",
+                abs(completion.stateAt(now).velocity) <= 0.0010001f,
+            )
+        }
+        if (!accepted) {
+            assertTrue(completion.startQueued(oldFinish))
+        }
+        val finish = nextStart + if (accepted) 0L else completion.durationMs
+        assertEquals(1f, completion.valueAt(finish), 0.00001f)
+    }
 }
