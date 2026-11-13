@@ -37,6 +37,8 @@ internal class ProgressEdgeSweep {
     ) {
         val target = toFraction.coerceIn(0f, 1f)
         val plan = safePlan(fromState, target) ?: buildPlan(fromState, target, MAX_DURATION_MS)
+        // A plan must respect the hard speed ceiling; the typical handoff
+        // starts from the rest or a separately rate-limited ordinary controller.
         install(plan, fromState, target, nowMs)
     }
 
@@ -135,7 +137,7 @@ internal class ProgressEdgeSweep {
             val sample = evaluate(plan.coefficients, i / 32.0, plan.duration)
             if (sample.position !in low..high ||
                 sample.position !in -EPSILON..(1f + EPSILON) ||
-                abs(sample.velocity).toDouble() > MAX_SPEED * 1.05 ||
+                abs(sample.velocity).toDouble() > MAX_SPEED + 0.0000001 ||
                 abs(sample.acceleration) > MAX_ACCELERATION
             ) {
                 return false
@@ -190,9 +192,9 @@ internal class ProgressEdgeSweep {
 
     companion object {
         const val MIN_DURATION_MS = 100L
-        private const val MAX_DURATION_MS = 450L
+        private const val MAX_DURATION_MS = 10_000L
         private const val STEP_MS = 10L
-        private const val MAX_SPEED = 0.006 // fraction/ms, peak about 600%/s
+        const val MAX_SPEED = 0.001 // fraction/ms: no faster than 100% in one second
         private const val MAX_ACCELERATION = 0.00015f
         private const val EPSILON = 0.0001f
     }
