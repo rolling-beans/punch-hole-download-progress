@@ -304,6 +304,15 @@ class IndicatorView(
                     if (edgeSweep.active) {
                         edgeSweep.retarget(1f, now)
                         postOnAnimation(edgeFrame)
+                    } else if (oldValue in 1..99 &&
+                        progressMotion.handoffTo(edgeSweep, now)
+                    ) {
+                        // Keep the already bounded quintic segment instead of
+                        // rebuilding an unsafe trajectory from moving x, v, a.
+                        stopRegularProgressAnimation()
+                        smoothProgress = edgeSweep.stateAt(now).position
+                        edgeSweep.retarget(1f, now)
+                        postOnAnimation(edgeFrame)
                     } else {
                         beginEdgeSweep(1f, motionState, now)
                     }
@@ -319,9 +328,16 @@ class IndicatorView(
                 }
 
                 newSession -> {
-                    val initialState =
-                        if (oldValue == 0) ProgressKinematics(0f) else motionState
-                    beginEdgeSweep(newValue / 100f, initialState, now)
+                    if (edgeSweep.active) {
+                        // Interruption by a new download also preserves the
+                        // currently moving trajectory and its speed ceiling.
+                        edgeSweep.retarget(newValue / 100f, now)
+                        postOnAnimation(edgeFrame)
+                    } else {
+                        val initialState =
+                            if (oldValue == 0) ProgressKinematics(0f) else motionState
+                        beginEdgeSweep(newValue / 100f, initialState, now)
+                    }
                 }
 
                 edgeSweep.active -> {
