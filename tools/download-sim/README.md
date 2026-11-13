@@ -45,7 +45,14 @@ Legacy repeating and multi-notification tests remain accessible below.
 ## Dedicated CI
 
 Workflow `.github/workflows/download-sim.yml` runs on pushes to
-`test/notification-progress-lab`. It runs JUnit unit tests and produces
-`notification-progress-simulator-apk` without compiling the main PHDP app
-or requiring signing secrets. The manual `workflow_dispatch` action may
-require the workflow to be present on the repository's default branch first.
+`test/notification-progress-lab`. It runs JUnit release unit tests and
+produces `notification-progress-simulator-signed-release-apk` without
+compiling the main PHDP app.
+
+**Permanent signing:** configure the repository Actions secret
+`SIM_CI_SIGNING_BUNDLE` with the JSON signing bundle generated for this app.
+The workflow refuses to run without it or if the certificate fingerprint
+differs from the expected fingerprint. The signing key must never be
+committed to the repository. `assembleRelease` is built with monotonically
+increasing versionCode from GitHub Actions run number. The manual
+`workflow_dispatch` action may require the workflow on the default branch.

@@ -1,4 +1,4 @@
-name: Download Simulator APK
+name: Download Simulator Signed Release APK
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - test/notification-progress-lab
     paths:
       - ".github/workflows/download-sim.yml"
+      - ".github/scripts/prepare-ci-signing.py"
       - "tools/download-sim/**"
       - "settings.gradle.kts"
       - "gradle/**"
@@ -17,7 +18,7 @@ permissions:
 
 jobs:
   simulator:
-    name: Build standalone simulator
+    name: Build signed simulator release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -28,13 +29,34 @@ jobs:
           java-version: 21
           cache: gradle
 
-      - name: Test and build simulator only
-        run: ./gradlew :tools:download-sim:testDebugUnitTest :tools:download-sim:assembleDebug
+      - name: Load stable release signing
+        env:
+          CI_SIGNING_BUNDLE: ${{ secrets.SIM_CI_SIGNING_BUNDLE }}
+          EXPECTED_CERT_SHA256: 741e213bb8375d9cbf1ee24dbe295c692fa39c382ad59ed48f2d9c6682d92d90
+        run: python3 .github/scripts/prepare-ci-signing.py
 
-      - name: Upload simulator APK
+      - name: Test and build signed simulator release
+        run: |
+          VERSION_CODE=$((2000 + GITHUB_RUN_NUMBER))
+          ./gradlew :tools:download-sim:testReleaseUnitTest :tools:download-sim:assembleRelease \
+            "-Psim.version.code=$VERSION_CODE" \
+            "-Psim.version.name=1.1-ci.$GITHUB_RUN_NUMBER"
+
+      - name: Verify release APK certificate
+        env:
+          EXPECTED_CERT_SHA256: 741e213bb8375d9cbf1ee24dbe295c692fa39c382ad59ed48f2d9c6682d92d90
+        run: |
+          APK="$(find tools/download-sim/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" > "$RUNNER_TEMP/apksigner.txt"
+          grep -Fi "Signer #1 certificate SHA-256 digest: $EXPECTED_CERT_SHA256" "$RUNNER_TEMP/apksigner.txt"
+
+      - name: Upload signed simulator APK
         uses: actions/upload-artifact@v7
         with:
-          name: notification-progress-simulator-apk
-          path: tools/download-sim/build/outputs/apk/debug/*.apk
+          name: notification-progress-simulator-signed-release-apk
+          path: tools/download-sim/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
