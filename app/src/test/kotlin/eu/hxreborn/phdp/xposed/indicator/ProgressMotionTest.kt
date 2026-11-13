@@ -57,31 +57,32 @@ class ProgressMotionTest {
     }
 
     @Test
-    fun `no smoothing snaps directly to bounded estimate`() {
+    fun `disabling smoothness still respects the hard speed limit`() {
         val motion = ProgressMotion()
-        motion.observe(10, 0)
-        motion.frame(0, 0, 100)
-        motion.observe(12, 1000)
-        val fraction = motion.frame(1200, 0, 100)
-        assertTrue(fraction >= 0.12f && fraction <= 0.14f)
+        motion.reset(displayPercent = 10f, observedPercent = 10f, nowMs = 0L)
+        motion.observe(12, 1_000L)
+        assertEquals(10f, motion.displayed, 0.00001f)
+        val fraction = motion.frame(1_200L, 0, 100)
+        assertTrue(fraction >= 0.10f && fraction < 0.12f)
+        assertTrue(abs(motion.kinematics().velocity) <= 0.0010001f)
     }
 
     @Test
-    fun `first partial notification is the initial displayed position`() {
+    fun `handoff after initial edge sweep preserves the first confirmed position`() {
+        // IndicatorView handles the introductory 0 -> X transition separately.
+        // On its completion the ordinary controller inherits that position.
         val motion = ProgressMotion()
-        motion.observe(73, 2000L)
-        assertTrue(abs(motion.displayed - 73f) < 0.0001f)
+        motion.reset(displayPercent = 73f, observedPercent = 73f, nowMs = 2_000L)
+        assertEquals(73f, motion.displayed, 0.0001f)
+        motion.frame(2_016L, 750, 100)
+        assertEquals(73f, motion.displayed, 0.0001f)
 
-        // No animation from zero, even with a long smoothing period.
-        motion.frame(2016L, 750, 100)
-        assertTrue(abs(motion.displayed - 73f) < 0.0001f)
-
-        motion.observe(75, 2100L)
-        val firstTransition = motion.frame(2116L, 750, 100)
+        motion.observe(75, 2_100L)
+        val firstTransition = motion.frame(2_116L, 750, 100)
         assertTrue(firstTransition >= 0.73f)
         assertTrue(firstTransition < 0.75f)
         var prior = motion.displayed
-        for (t in 2132L..2900L step 16L) {
+        for (t in 2_132L..2_900L step 16L) {
             motion.frame(t, 750, 100)
             assertTrue("unexpected reverse motion at $t", motion.displayed >= prior - 0.0001f)
             prior = motion.displayed
@@ -197,4 +198,44 @@ class ProgressMotionTest {
             assertTrue("speed exceeded at $now", abs(motion.kinematics().velocity) <= 0.0010001f)
         }
     }
+    @Test
+    fun `one-hertz fast segment followed by a stall and slow resume remains bounded`() {
+        val motion = ProgressMotion()
+        motion.reset(displayPercent = 10f, observedPercent = 10f, nowMs = 0L)
+        var actual = 10f
+        var previous = motion.displayed
+        var duringStallStart = 0f
+        var duringStallEnd = 0f
+        for (now in 0L..9_000L step 10L) {
+            when (now) {
+                1_000L -> {
+                    motion.observe(30, now)
+                    actual = 30f
+                }
+                2_000L -> {
+                    motion.observe(48, now)
+                    actual = 48f
+                }
+                3_000L -> {
+                    motion.observe(60, now)
+                    actual = 60f
+                }
+                5_500L -> {
+                    motion.observe(61, now)
+                    actual = 61f
+                }
+            }
+            motion.frame(now, 1_500, 1_000)
+            val state = motion.kinematics()
+            assertTrue("speed cap violated at $now", abs(state.velocity) <= 0.0010001f)
+            assertTrue("ring reversed at $now", motion.displayed >= previous - 0.0001f)
+            assertTrue("unconfirmed progress at $now", motion.displayed <= actual + 0.0001f)
+            if (now == 3_200L) duringStallStart = motion.displayed
+            if (now == 5_200L) duringStallEnd = motion.displayed
+            previous = motion.displayed
+        }
+        assertTrue("ring froze when notifications paused", duringStallEnd > duringStallStart)
+        assertTrue("ring did not catch up", motion.displayed > 59f)
+    }
+
 }
