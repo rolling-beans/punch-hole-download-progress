@@ -113,4 +113,51 @@ class ProgressMotionTest {
         assertTrue(abs(motion.frame(1516L, 750, 100) - 0.63f) < 0.001f)
         assertTrue(motion.frame(1700L, 750, 100) > 0.63f)
     }
+    @Test
+    fun `new source observation preserves C2 kinematics`() {
+        val motion = ProgressMotion()
+        motion.reset(displayPercent = 20f, observedPercent = 20f, nowMs = 0L)
+        motion.observe(55, 50L)
+        motion.frame(100L, 450, 100)
+        val before = motion.kinematics()
+        assertTrue(before.velocity > 0f)
+        motion.observe(60, 100L)
+        val after = motion.kinematics()
+        assertEquals(before.position, after.position, 0f)
+        assertEquals(before.velocity, after.velocity, 0f)
+        assertEquals(before.acceleration, after.acceleration, 0f)
+    }
+
+    @Test
+    fun `changing update rate does not reset derivatives`() {
+        val motion = ProgressMotion()
+        motion.reset(displayPercent = 25f, observedPercent = 60f, nowMs = 0L)
+        motion.frame(120L, 550, 100)
+        val before = motion.kinematics()
+        motion.frame(120L, 550, 1000)
+        val after = motion.kinematics()
+        assertEquals(before.position, after.position, 0.00001f)
+        assertEquals(before.velocity, after.velocity, 0.0000001f)
+        assertEquals(before.acceleration, after.acceleration, 0.00000001f)
+    }
+
+    @Test
+    fun `edge motion state can initialize continuous ordinary controller`() {
+        val edge = ProgressEdgeSweep()
+        edge.start(0f, 0.65f, 0L)
+        val now = edge.durationMs
+        val endpoint = edge.stateAt(now)
+        val motion = ProgressMotion()
+        motion.reset(
+            displayPercent = endpoint.position * 100f,
+            observedPercent = 66f,
+            nowMs = now,
+            velocityPercentPerSecond = endpoint.velocity * 100_000f,
+            accelerationPercentPerSecondSquared = endpoint.acceleration * 100_000_000f,
+        )
+        val start = motion.kinematics()
+        assertEquals(endpoint.position, start.position, 0.000001f)
+        assertEquals(endpoint.velocity, start.velocity, 0f)
+        assertEquals(endpoint.acceleration, start.acceleration, 0f)
+    }
 }
