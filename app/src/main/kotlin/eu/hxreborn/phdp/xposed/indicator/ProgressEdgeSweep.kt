@@ -23,6 +23,7 @@ internal class ProgressEdgeSweep {
     private var initial = ProgressKinematics(0f)
     private var coefficients = DoubleArray(6)
     private var queuedTarget: Float? = null
+    private var minimumDurationMs = MIN_DURATION_MS
 
     fun start(
         fromFraction: Float,
@@ -34,7 +35,9 @@ internal class ProgressEdgeSweep {
         fromState: ProgressKinematics,
         toFraction: Float,
         nowMs: Long,
+        minimumDurationMs: Long = MIN_DURATION_MS,
     ) {
+        this.minimumDurationMs = minimumDurationMs.coerceIn(MIN_DURATION_MS, MAX_DURATION_MS)
         val target = toFraction.coerceIn(0f, 1f)
         val plan = safePlan(fromState, target) ?: buildPlan(fromState, target, MAX_DURATION_MS)
         // A plan must respect the hard speed ceiling; the typical handoff
@@ -46,7 +49,9 @@ internal class ProgressEdgeSweep {
     fun retarget(
         toFraction: Float,
         nowMs: Long,
+        minimumDurationMs: Long = this.minimumDurationMs,
     ): Boolean {
+        this.minimumDurationMs = minimumDurationMs.coerceIn(MIN_DURATION_MS, MAX_DURATION_MS)
         if (!active) return false
         val target = toFraction.coerceIn(0f, 1f)
         if (abs(target - destination) < EPSILON) {
@@ -67,7 +72,7 @@ internal class ProgressEdgeSweep {
         val goal = queuedTarget ?: return false
         queuedTarget = null
         if (abs(goal - destination) < EPSILON) return false
-        start(ProgressKinematics(destination), goal, nowMs)
+        start(ProgressKinematics(destination), goal, nowMs, minimumDurationMs)
         return true
     }
 
@@ -115,7 +120,7 @@ internal class ProgressEdgeSweep {
         // At rest, quintic peak speed = 1.875 * distance / duration.
         val minimum =
             maxOf(
-                MIN_DURATION_MS,
+                minimumDurationMs,
                 ceil(1.875 * abs(goal - state.position) / MAX_SPEED / STEP_MS)
                     .toLong() * STEP_MS,
             )
