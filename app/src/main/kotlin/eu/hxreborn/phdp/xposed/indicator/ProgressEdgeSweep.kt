@@ -28,8 +28,9 @@ internal class ProgressEdgeSweep {
 
     fun valueAt(nowMs: Long): Float {
         if (!active) return to
-        val t = ((nowMs - startedMs).coerceAtLeast(0L) / DURATION_MS.toFloat())
-            .coerceIn(0f, 1f)
+        val t =
+            ((nowMs - startedMs).coerceAtLeast(0L) / DURATION_MS.toFloat())
+                .coerceIn(0f, 1f)
         // Smoothstep: no sudden velocity discontinuity at the endpoints.
         val eased = t * t * (3f - 2f * t)
         return (from + (to - from) * eased).coerceIn(0f, 1f)

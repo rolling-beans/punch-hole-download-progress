@@ -66,7 +66,7 @@ class IndicatorView(
 
     private val animator = IndicatorAnimator(this)
 
-    private val FULL_RING_HOLD_MS = 24L
+    private val fullRingHoldMs = 24L
     private var downloadStartTime = 0L
     private var pendingFinishRunnable: Runnable? = null
     private var lastActivityTime = 0L
@@ -108,7 +108,11 @@ class IndicatorView(
     private val progressFrame =
         object : Runnable {
             override fun run() {
-                if (IndicatorState.progressUpdateMs >= 1000 || edgeSweep.active || completionPending) return
+                if (IndicatorState.progressUpdateMs >= 1000 ||
+                    edgeSweep.active || completionPending
+                ) {
+                    return
+                }
                 val now = SystemClock.uptimeMillis()
                 val fraction =
                     progressMotion.frame(
@@ -194,7 +198,7 @@ class IndicatorView(
         val elapsed = System.currentTimeMillis() - downloadStartTime
         val remaining = if (downloadStartTime > 0L) minVisibilityMs - elapsed else 0L
         // Give SystemUI at least one VSYNC to actually draw the full 100% ring.
-        val delayMs = maxOf(remaining, FULL_RING_HOLD_MS).coerceAtLeast(0L)
+        val delayMs = maxOf(remaining, fullRingHoldMs).coerceAtLeast(0L)
         pendingFinishRunnable?.let { removeCallbacks(it) }
         pendingFinishRunnable =
             Runnable {
