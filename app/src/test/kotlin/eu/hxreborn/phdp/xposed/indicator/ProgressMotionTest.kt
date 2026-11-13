@@ -64,4 +64,53 @@ class ProgressMotionTest {
         val fraction = motion.frame(1200, 0, 100)
         assertTrue(fraction >= 0.12f && fraction <= 0.14f)
     }
+
+    @Test
+    fun `first partial notification is the initial displayed position`() {
+        val motion = ProgressMotion()
+        motion.observe(73, 2000L)
+        assertTrue(abs(motion.displayed - 73f) < 0.0001f)
+
+        // No animation from zero, even with a long smoothing period.
+        motion.frame(2016L, 750, 100)
+        assertTrue(abs(motion.displayed - 73f) < 0.0001f)
+
+        motion.observe(75, 2100L)
+        val firstTransition = motion.frame(2116L, 750, 100)
+        assertTrue(firstTransition >= 0.73f)
+        assertTrue(firstTransition < 0.75f)
+        var prior = motion.displayed
+        for (t in 2132L..2900L step 16L) {
+            motion.frame(t, 750, 100)
+            assertTrue("unexpected reverse motion at $t", motion.displayed >= prior - 0.0001f)
+            prior = motion.displayed
+        }
+    }
+
+    @Test
+    fun `new late-starting session can resume from confirmed partial progress`() {
+        val motion = ProgressMotion()
+        motion.observe(45, 0L)
+        motion.frame(300L, 300, 100)
+        motion.observe(0, 1000L)
+        assertTrue(motion.frame(1016L, 750, 100) == 0f)
+
+        // This mirrors IndicatorView's first-positive-after-zero session reset.
+        motion.reset(
+            displayPercent = 88f,
+            observedPercent = 88f,
+            nowMs = 1200L,
+        )
+        assertTrue(abs(motion.frame(1216L, 750, 100) - 0.88f) < 0.0001f)
+        motion.observe(89, 1300L)
+        assertTrue(motion.frame(1316L, 750, 100) >= 0.88f)
+    }
+
+    @Test
+    fun `mode switch preserves previously drawn fraction`() {
+        val motion = ProgressMotion()
+        motion.reset(displayPercent = 63f, observedPercent = 67f, nowMs = 1500L)
+        assertTrue(abs(motion.frame(1516L, 750, 100) - 0.63f) < 0.001f)
+        assertTrue(motion.frame(1700L, 750, 100) > 0.63f)
+    }
 }

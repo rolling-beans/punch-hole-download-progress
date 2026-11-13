@@ -199,7 +199,19 @@ class IndicatorView(
                 if (IndicatorState.progressUpdateMs < 1000) {
                     progressAnim?.cancel()
                     progressAnim = null
-                    progressMotion.observe(newValue, SystemClock.uptimeMillis())
+                    val now = SystemClock.uptimeMillis()
+                    if (oldValue == 0 && newValue > 0) {
+                        // The first real notification may already report 40%, 70%, etc.
+                        // Use that confirmed position as the starting frame, not 0%.
+                        progressMotion.reset(
+                            displayPercent = newValue.toFloat(),
+                            observedPercent = newValue.toFloat(),
+                            nowMs = now,
+                        )
+                        smoothProgress = newValue / 100f
+                    } else {
+                        progressMotion.observe(newValue, now)
+                    }
                     removeCallbacks(progressFrame)
                     postOnAnimation(progressFrame)
                 } else {
@@ -362,11 +374,20 @@ class IndicatorView(
                     progressAnim?.cancel()
                     progressAnim = null
                     if (newRate < 1000) {
+                        // During a late settings load the legacy ring might not have
+                        // rendered yet. Never restart an already visible download at 0%.
+                        val startingPercent =
+                            if (smoothProgress <= 0f && progress > 0) {
+                                progress.toFloat()
+                            } else {
+                                smoothProgress * 100f
+                            }
                         progressMotion.reset(
-                            displayPercent = smoothProgress * 100f,
+                            displayPercent = startingPercent,
                             observedPercent = progress.toFloat(),
                             nowMs = SystemClock.uptimeMillis(),
                         )
+                        smoothProgress = startingPercent / 100f
                         if (progress in 1..99) postOnAnimation(progressFrame)
                     } else {
                         smoothProgress = applyEasing(progress, IndicatorState.progressEasing)

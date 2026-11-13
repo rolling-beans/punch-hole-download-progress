@@ -42,8 +42,12 @@ internal class ProgressMotion {
         percent: Int,
         nowMs: Long,
     ) {
-        if (lastObservationMs < 0) reset(nowMs = nowMs)
         val value = percent.coerceIn(0, 100).toFloat()
+        if (lastObservationMs < 0) {
+            // Late attachment must never animate backwards from an artificial zero.
+            reset(displayPercent = value, observedPercent = value, nowMs = nowMs)
+            return
+        }
         val gap = (nowMs - lastObservationMs).coerceAtLeast(0L)
         val delta = value - observed
         if (delta > 0f && observed > 0f && value < 100f && gap in 50L..10_000L) {
