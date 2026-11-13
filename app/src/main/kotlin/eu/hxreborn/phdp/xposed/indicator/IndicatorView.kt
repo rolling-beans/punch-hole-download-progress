@@ -323,7 +323,9 @@ class IndicatorView(
                     postOnAnimation(progressFrame)
                 }
 
-                else -> animateProgressTo(newValue)
+                else -> {
+                    animateProgressTo(newValue)
+                }
             }
             logDebug { "IndicatorView: progress = $newValue" }
             post { invalidate() }
