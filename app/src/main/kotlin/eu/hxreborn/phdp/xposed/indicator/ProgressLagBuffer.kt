@@ -96,14 +96,10 @@ internal class ProgressLagBuffer {
         return commanded
     }
 
-    fun needsCatchUp(
-        displayed: Float,
-        nowMs: Long,
-    ): Boolean {
-        return lastObservationMs >= 0L &&
+    fun needsCatchUp(displayed: Float, nowMs: Long): Boolean =
+        lastObservationMs >= 0L &&
             nowMs >= lastObservationMs &&
             confirmed - displayed > 0.02f
-    }
 
     companion object {
         const val MAX_WITHHELD_PERCENT = 6f
