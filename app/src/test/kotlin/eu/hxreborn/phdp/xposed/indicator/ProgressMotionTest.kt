@@ -198,6 +198,7 @@ class ProgressMotionTest {
             assertTrue("speed exceeded at $now", abs(motion.kinematics().velocity) <= 0.0010001f)
         }
     }
+
     @Test
     fun `one-hertz fast segment followed by a stall and slow resume remains bounded`() {
         val motion = ProgressMotion()
@@ -212,14 +213,17 @@ class ProgressMotionTest {
                     motion.observe(30, now)
                     actual = 30f
                 }
+
                 2_000L -> {
                     motion.observe(48, now)
                     actual = 48f
                 }
+
                 3_000L -> {
                     motion.observe(60, now)
                     actual = 60f
                 }
+
                 5_500L -> {
                     motion.observe(61, now)
                     actual = 61f
@@ -237,5 +241,4 @@ class ProgressMotionTest {
         assertTrue("ring froze when notifications paused", duringStallEnd > duringStallStart)
         assertTrue("ring did not catch up", motion.displayed > 59f)
     }
-
 }
