@@ -162,4 +162,39 @@ class ProgressMotionTest {
         assertEquals(endpoint.velocity, start.velocity, 0f)
         assertEquals(endpoint.acceleration, start.acceleration, 0f)
     }
+
+    @Test
+    fun `ordinary progress cannot exceed 100 percent per second even without smoothing`() {
+        val motion = ProgressMotion()
+        motion.reset(nowMs = 0L)
+        motion.observe(99, 0L)
+        var previous = 0f
+        for (now in 0L..2_500L) {
+            motion.frame(now, 0, 50)
+            val state = motion.kinematics()
+            assertTrue("speed exceeded at $now", abs(state.velocity) <= 0.0010001f)
+            assertTrue("progress went backwards at $now", state.position >= previous - 0.000001f)
+            assertTrue("progress jumped at $now", state.position - previous <= 0.001001f)
+            previous = state.position
+        }
+        assertTrue(motion.displayed > 98.9f)
+    }
+
+    @Test
+    fun `regular retarget keeps velocity and acceleration without exceeding limit`() {
+        val motion = ProgressMotion()
+        motion.reset(nowMs = 0L)
+        motion.observe(90, 0L)
+        for (now in 0L..300L step 10L) motion.frame(now, 100, 100)
+        val before = motion.kinematics()
+        motion.observe(96, 300L)
+        val after = motion.kinematics()
+        assertEquals(before.position, after.position, 0f)
+        assertEquals(before.velocity, after.velocity, 0f)
+        assertEquals(before.acceleration, after.acceleration, 0f)
+        for (now in 301L..2_500L) {
+            motion.frame(now, 100, 100)
+            assertTrue("speed exceeded at $now", abs(motion.kinematics().velocity) <= 0.0010001f)
+        }
+    }
 }
