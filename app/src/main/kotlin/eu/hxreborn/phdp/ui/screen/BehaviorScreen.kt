@@ -417,7 +417,7 @@ fun BehaviorScreen(
                                         title = {
                                             Text(stringResource(R.string.pref_progress_anim_title))
                                         },
-                                        valueRange = 0f..750f,
+                                        valueRange = 0f..2000f,
                                         defaultValue = Prefs.progressAnimMs.default.toFloat(),
                                         onReset = {
                                             viewModel.savePref(
