@@ -1,5 +1,6 @@
 package eu.hxreborn.phdp.xposed.indicator
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
@@ -113,6 +114,7 @@ class ProgressMotionTest {
         assertTrue(abs(motion.frame(1516L, 750, 100) - 0.63f) < 0.001f)
         assertTrue(motion.frame(1700L, 750, 100) > 0.63f)
     }
+
     @Test
     fun `new source observation preserves C2 kinematics`() {
         val motion = ProgressMotion()
