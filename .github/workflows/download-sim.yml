@@ -58,21 +58,16 @@ jobs:
           import sys
 
           report = pathlib.Path(os.environ["RUNNER_TEMP"], "apksigner.txt").read_text()
-          match = re.search(
-              r"Signer #1 certificate SHA-256 digest:\s*([a-fA-F0-9:]+)",
+          digests = re.findall(
+              r"certificate SHA-256 digest:\s*([a-fA-F0-9:]+)",
               report, re.IGNORECASE,
           )
-          if not match:
-              print("Certificate digest missing in apksigner report.")
-              print("Certificate lines:", [
-                  line for line in report.splitlines()
-                  if "certificate" in line.lower() and "sha-256" in line.lower()
-              ])
-              sys.exit(1)
-          actual = match.group(1).replace(":", "").lower()
+          if not digests:
+              sys.exit("apksigner reported no certificate SHA-256 digests")
+          actual = {digest.replace(":", "").lower() for digest in digests}
           expected = os.environ["EXPECTED_CERT_SHA256"].replace(":", "").lower()
-          print("Signed APK certificate SHA-256:", actual)
-          if actual != expected:
+          print("Signed APK certificate SHA-256:", ", ".join(sorted(actual)))
+          if actual != {expected}:
               sys.exit("Signed APK certificate does not match pinned signing key")
           print("Verified: expected release signing certificate")
           PY
