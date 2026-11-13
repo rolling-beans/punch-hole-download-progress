@@ -107,7 +107,7 @@ internal class ProgressMotion {
         goalFraction: Float,
         nowMs: Long,
     ) {
-        val goal = goalFraction.coerceIn(0f, if (observed >= 100f) 1f else 0.9999f)
+        val goal = goalFraction.coerceIn(0f, if (lagBuffer.confirmed >= 100f) 1f else 0.9999f)
         val minDuration =
             when (easing) {
                 "accelerate" -> smoothnessMs * 0.8f
