@@ -1,7 +1,6 @@
 package eu.hxreborn.phdp.xposed.indicator
 
 import kotlin.math.abs
-import kotlin.math.min
 
 /**
  * A predictive progress controller whose displayed trajectory is a quintic
@@ -16,12 +15,9 @@ internal class ProgressMotion {
         private set
 
     private val trajectory = ProgressEdgeSweep()
+    private val lagBuffer = ProgressLagBuffer()
     private var state = ProgressKinematics(0f)
-    private var observed = 0f
-    private var observedRate = 0f // percent/ms
-    private var lastObservationMs = -1L
     private var lastSampleMs = -1L
-    private var observationGapMs = 1000L
     private var smoothnessMs = 100
     private var easing = "linear"
 
@@ -34,16 +30,13 @@ internal class ProgressMotion {
     ) {
         trajectory.cancel()
         displayed = displayPercent.coerceIn(0f, 100f)
-        observed = observedPercent.coerceIn(0f, 100f)
+        lagBuffer.reset(displayed, observedPercent, nowMs)
         state =
             ProgressKinematics(
                 displayed / 100f,
                 velocityPercentPerSecond / 100_000f,
                 accelerationPercentPerSecondSquared / 100_000_000f,
             )
-        observedRate = 0f
-        observationGapMs = 1000L
-        lastObservationMs = nowMs
         lastSampleMs = -1L
     }
 
@@ -67,28 +60,14 @@ internal class ProgressMotion {
         nowMs: Long,
     ) {
         val value = percent.coerceIn(0, 100).toFloat()
-        if (lastObservationMs < 0L) {
-            reset(displayPercent = value, observedPercent = value, nowMs = nowMs)
-            return
-        }
-        sampleAt(nowMs)
-        val gap = (nowMs - lastObservationMs).coerceAtLeast(0L)
-        val delta = value - observed
-        if (delta > 0f && observed > 0f && value < 100f && gap in 50L..10_000L) {
-            val rate = (delta / gap).coerceAtMost(MAX_OBSERVED_RATE)
-            observedRate = if (observedRate > 0f) observedRate * 0.5f + rate * 0.5f else rate
-            observationGapMs = gap
-        } else if (delta < 0f || value <= 0f || value >= 100f || gap > 10_000L) {
-            observedRate = 0f
-        }
-        observed = value
-        lastObservationMs = nowMs
-        lastSampleMs = -1L
         if (value <= 0f) {
             reset(nowMs = nowMs)
             return
         }
-        aimAt(value / 100f, nowMs)
+        sampleAt(nowMs)
+        lagBuffer.observe(value, nowMs, smoothnessMs)
+        lastSampleMs = -1L
+        aimAt(lagBuffer.targetAt(nowMs, smoothnessMs, displayed) / 100f, nowMs)
     }
 
     fun frame(
@@ -100,23 +79,19 @@ internal class ProgressMotion {
         this.smoothnessMs = smoothnessMs
         this.easing = easing
         sampleAt(nowMs)
-        if (lastSampleMs < 0L ||
-            nowMs - lastSampleMs >= updateRateMs.coerceAtLeast(1)
-        ) {
-            val goal =
-                if (updateRateMs < 1000) prediction(nowMs) else observed
-            aimAt(goal / 100f, nowMs)
+        // Re-evaluate the slow reservoir release between notifications. It is
+        // independent from their arrival cadence; the actual rendering still
+        // runs on the View's VSYNC, not this lower-frequency target refresh.
+        val targetIntervalMs = updateRateMs.coerceIn(50, 150)
+        if (lastSampleMs < 0L || nowMs - lastSampleMs >= targetIntervalMs) {
+            aimAt(lagBuffer.targetAt(nowMs, smoothnessMs, displayed) / 100f, nowMs)
             lastSampleMs = nowMs
         }
         return displayed / 100f
     }
 
     fun needsFrame(nowMs: Long): Boolean =
-        trajectory.active ||
-            (
-                observedRate > 0f && observed in 1f..99f &&
-                    nowMs - lastObservationMs < predictionHorizonMs()
-            )
+        trajectory.active || lagBuffer.needsCatchUp(displayed, nowMs)
 
     private fun sampleAt(nowMs: Long) {
         if (trajectory.active) {
@@ -147,19 +122,7 @@ internal class ProgressMotion {
         }
     }
 
-    private fun prediction(nowMs: Long): Float {
-        if (observed !in 1f..99f || observedRate <= 0f) return observed
-        val ageMs = (nowMs - lastObservationMs).coerceAtLeast(0L)
-        val leadMs = min(ageMs, predictionHorizonMs())
-        val lead = min(observedRate * leadMs, MAX_LEAD_PERCENT)
-        return (observed + lead).coerceAtMost(99.99f)
-    }
-
-    private fun predictionHorizonMs(): Long = (observationGapMs * 5L / 4L).coerceIn(400L, 2_000L)
-
     private companion object {
         const val MIN_DISTANCE = 0.00001f
-        const val MAX_LEAD_PERCENT = 2f
-        const val MAX_OBSERVED_RATE = 0.025f
     }
 }
