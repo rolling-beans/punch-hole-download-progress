@@ -12,7 +12,8 @@ class ProgressEdgeSweepTest {
         val sweep = ProgressEdgeSweep()
         sweep.start(0f, 0.65f, 1_000L)
         assertTrue(sweep.durationMs > 100L)
-        assertTrue(sweep.durationMs <= 450L)
+        assertTrue(sweep.durationMs >= 1_210L)
+        assertTrue(sweep.durationMs <= 2_500L)
         assertEquals(0f, sweep.valueAt(1_000L), 0f)
         assertEquals(0f, sweep.stateAt(1_000L).velocity, 0f)
         assertFalse(sweep.isFinished(1_000L + sweep.durationMs - 1L))
@@ -24,14 +25,15 @@ class ProgressEdgeSweepTest {
     }
 
     @Test
-    fun `small final percent finishes at full ring in one hundred milliseconds`() {
+    fun `final sweep respects peak speed even at small distances`() {
         val sweep = ProgressEdgeSweep()
         sweep.start(0.93f, 1f, 20_000L)
-        assertEquals(100L, sweep.durationMs)
+        assertTrue(sweep.durationMs >= 130L)
+        assertTrue(sweep.durationMs <= 180L)
         assertEquals(0.93f, sweep.valueAt(20_000L), 0.00001f)
         assertTrue(sweep.valueAt(20_075L) < 1f)
-        assertEquals(1f, sweep.valueAt(20_100L), 0f)
-        assertTrue(sweep.isFinished(20_100L))
+        assertEquals(1f, sweep.valueAt(20_000L + sweep.durationMs), 0f)
+        assertTrue(sweep.isFinished(20_000L + sweep.durationMs))
     }
 
     @Test
@@ -86,7 +88,7 @@ class ProgressEdgeSweepTest {
             val state = sweep.stateAt(now)
             assertTrue("position reversed at $now", state.position >= previous - 0.000001f)
             assertTrue("position exceeded bounds", state.position in 0f..0.82f)
-            assertTrue("unbounded velocity", abs(state.velocity) <= 0.0065f)
+            assertTrue("unbounded velocity", abs(state.velocity) <= 0.0010001f)
             assertTrue("unbounded acceleration", abs(state.acceleration) <= 0.00015f)
             previous = state.position
         }
