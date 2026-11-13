@@ -38,7 +38,7 @@ jobs:
       - name: Test and build signed simulator release
         run: |
           VERSION_CODE=$((2000 + GITHUB_RUN_NUMBER))
-          ./gradlew :tools:download-sim:testReleaseUnitTest :tools:download-sim:assembleRelease \
+          ./gradlew :tools:download-sim:testDebugUnitTest :tools:download-sim:assembleRelease \
             "-Psim.version.code=$VERSION_CODE" \
             "-Psim.version.name=1.1-ci.$GITHUB_RUN_NUMBER"
 
