@@ -49,6 +49,19 @@ internal class ProgressMotion {
 
     fun kinematics(): ProgressKinematics = state
 
+    /**
+     * Preserve an existing safe normal-progress trajectory when the terminal
+     * ring takes over; an instantaneous quintic rebuild can exceed the
+     * velocity limit even though the inherited path does not.
+     */
+    fun handoffTo(
+        destination: ProgressEdgeSweep,
+        nowMs: Long,
+    ): Boolean {
+        sampleAt(nowMs)
+        return destination.takeOver(trajectory)
+    }
+
     fun observe(
         percent: Int,
         nowMs: Long,
