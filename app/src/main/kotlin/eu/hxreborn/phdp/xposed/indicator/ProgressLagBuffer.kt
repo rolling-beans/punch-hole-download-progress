@@ -96,7 +96,10 @@ internal class ProgressLagBuffer {
         return commanded
     }
 
-    fun needsCatchUp(displayed: Float, nowMs: Long): Boolean =
+    fun needsCatchUp(
+        displayed: Float,
+        nowMs: Long,
+    ): Boolean =
         lastObservationMs >= 0L &&
             nowMs >= lastObservationMs &&
             confirmed - displayed > 0.02f
