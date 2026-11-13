@@ -142,8 +142,7 @@ internal class ProgressMotion {
         return (observed + lead).coerceAtMost(99.99f)
     }
 
-    private fun predictionHorizonMs(): Long =
-        (observationGapMs * 5L / 4L).coerceIn(400L, 2_000L)
+    private fun predictionHorizonMs(): Long = (observationGapMs * 5L / 4L).coerceIn(400L, 2_000L)
 
     private companion object {
         const val MIN_DISTANCE = 0.00001f
