@@ -51,8 +51,10 @@ class DownloadRemovalPolicyTest {
                 reportComplete = { events += "progress=100" },
                 reportCancelled = { events += "cancelled" },
             )
-            assertTrue("Unexpected event order with reason=$reason: $events",
-                events == listOf("progress=100", "progress=0"))
+            assertTrue(
+                "Unexpected event order with reason=$reason: $events",
+                events == listOf("progress=100", "progress=0"),
+            )
         }
     }
 
