@@ -15,4 +15,42 @@ internal object DownloadRemovalPolicy {
         packageName: String,
         lastPercent: Int,
     ): Boolean = packageName == SIMULATOR_PACKAGE && lastPercent < 100
+
+    /**
+     * Do not dispatch the empty remaining average before reporting completion.
+     * Otherwise a single removed download generates 60% -> 0% -> 100%;
+     * IndicatorView restarts its entire finishing sweep from zero.
+     *
+     * Keep the existing ordering for cancellations: clear remaining progress
+     * before the error effect, and do not report a successful finish on Stop.
+     */
+    fun dispatch(
+        packageName: String,
+        lastPercent: Int,
+        reason: Int,
+        updateRemainingProgress: () -> Unit,
+        reportComplete: () -> Unit,
+        reportCancelled: () -> Unit,
+    ) {
+        when {
+            isSilentStop(packageName, lastPercent) -> updateRemainingProgress()
+            lastPercent >= 100 ||
+                reason == REASON_APP_CANCEL ||
+                reason == REASON_APP_CANCEL_ALL -> {
+                reportComplete()
+                updateRemainingProgress()
+            }
+
+            lastPercent >= LOW_PROGRESS_THRESHOLD -> {
+                updateRemainingProgress()
+                reportCancelled()
+            }
+
+            else -> updateRemainingProgress()
+        }
+    }
+
+    private const val REASON_APP_CANCEL = 8
+    private const val REASON_APP_CANCEL_ALL = 9
+    private const val LOW_PROGRESS_THRESHOLD = 5
 }
