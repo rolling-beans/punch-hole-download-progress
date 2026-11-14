@@ -33,7 +33,10 @@ internal object DownloadRemovalPolicy {
         reportCancelled: () -> Unit,
     ) {
         when {
-            isSilentStop(packageName, lastPercent) -> updateRemainingProgress()
+            isSilentStop(packageName, lastPercent) -> {
+                updateRemainingProgress()
+            }
+
             lastPercent >= 100 ||
                 reason == REASON_APP_CANCEL ||
                 reason == REASON_APP_CANCEL_ALL -> {
@@ -46,7 +49,9 @@ internal object DownloadRemovalPolicy {
                 reportCancelled()
             }
 
-            else -> updateRemainingProgress()
+            else -> {
+                updateRemainingProgress()
+            }
         }
     }
 
