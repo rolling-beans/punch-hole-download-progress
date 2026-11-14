@@ -16,9 +16,6 @@ object DownloadProgressHook {
     private const val EXTRA_TITLE = "android.title"
     private const val STALE_AGE_MS = 5 * 60 * 1000L
     private const val SIGNIFICANT_DROP_PERCENT = 25
-    private const val LOW_PROGRESS_THRESHOLD = 5
-    private const val REASON_APP_CANCEL = 8
-    private const val REASON_APP_CANCEL_ALL = 9
     private const val RV_ACTIONS_FIELD = "mActions"
     private const val RV_SET_PROGRESS = "setProgress"
     private const val RV_SET_MAX = "setMax"
@@ -105,10 +102,7 @@ object DownloadProgressHook {
             ) ?: run {
                 // some browsers use max=0 as a completion signal rather than removing the notification
                 activeDownloads.remove(id)?.let {
-                    logDebug { "complete download pkg=${it.packageName} source=max-zero" }
-                    onActiveCountChanged?.invoke(activeDownloads.size)
-                    onDownloadComplete?.invoke()
-                    updateProgress()
+                    reportTrackedCompletion(it.packageName, "max-zero")
                 }
                 return
             }
@@ -135,19 +129,42 @@ object DownloadProgressHook {
                 lastUpdate = System.currentTimeMillis(),
             )
 
+        if (percent == 100) {
+            // Exclude the completed notification from the aggregate before
+            // publishing a progress update. Otherwise remaining downloads
+            // briefly include an artificial 100% sample.
+            activeDownloads.remove(id)
+            reportTrackedCompletion(pkg, "100-percent")
+            return
+        }
+
         if (oldState?.progress != percent) {
             activeDownloads[id] = newState
             logDebug { "progress pkg=$pkg percent=$percent" }
             updateProgress()
             if (wasNew) onActiveCountChanged?.invoke(activeDownloads.size)
         }
+    }
 
-        if (percent == 100) {
-            activeDownloads.remove(id)
-            onActiveCountChanged?.invoke(activeDownloads.size)
-            onDownloadComplete?.invoke()
-            updateProgress()
-        }
+    /**
+     * An individual notification may complete while others remain active.
+     * Only the final tracked completion can start the terminal ring effect.
+     */
+    private fun reportTrackedCompletion(
+        pkg: String,
+        source: String,
+    ) {
+        val remaining = activeDownloads.size
+        logDebug { "download completed pkg=$pkg source=$source remaining=$remaining" }
+        onActiveCountChanged?.invoke(remaining)
+        DownloadRemovalPolicy.dispatchCompleted(
+            remainingDownloads = remaining,
+            updateRemainingProgress = ::updateProgress,
+            reportComplete = {
+                onProgressChanged?.invoke(100)
+                onDownloadComplete?.invoke()
+            },
+        )
     }
 
     private fun updateProgress() {
@@ -302,27 +319,26 @@ object DownloadProgressHook {
 
         val wasTracking = activeDownloads.remove(id) ?: return
         onActiveCountChanged?.invoke(activeDownloads.size)
-        updateProgress()
-        when {
-            wasTracking.progress >= 100 -> {
-                logDebug { "complete download pkg=$pkg progress=100" }
-                onProgressChanged?.invoke(100)
-                onDownloadComplete?.invoke()
-            }
-
-            reason == REASON_APP_CANCEL || reason == REASON_APP_CANCEL_ALL -> {
+        DownloadRemovalPolicy.dispatch(
+            packageName = pkg,
+            lastPercent = wasTracking.progress,
+            reason = reason,
+            remainingDownloads = activeDownloads.size,
+            updateRemainingProgress = ::updateProgress,
+            reportComplete = {
                 logDebug {
-                    "complete download pkg=$pkg reason=app-cancel progress=${wasTracking.progress}"
+                    "complete download pkg=$pkg reason=$reason progress=${wasTracking.progress}"
                 }
                 onProgressChanged?.invoke(100)
                 onDownloadComplete?.invoke()
-            }
-
-            wasTracking.progress >= LOW_PROGRESS_THRESHOLD -> {
-                logDebug { "cancelled download pkg=$pkg progress=${wasTracking.progress}" }
+            },
+            reportCancelled = {
+                logDebug {
+                    "cancelled download pkg=$pkg progress=${wasTracking.progress}"
+                }
                 onDownloadCancelled?.invoke()
-            }
-        }
+            },
+        )
     }
 
     internal fun isStatusBarNotification(obj: Any): Boolean =

@@ -124,4 +124,5 @@ data class AppPrefs(
     val verboseLogging: Boolean = Prefs.verboseLogging.default,
     val burnInHideMs: Int = Prefs.burnInHideMs.default,
     val progressAnimMs: Int = Prefs.progressAnimMs.default,
+    val progressUpdateMs: Int = Prefs.progressUpdateMs.default,
 )

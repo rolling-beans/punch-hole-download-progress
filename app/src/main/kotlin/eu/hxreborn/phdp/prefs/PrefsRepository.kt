@@ -326,6 +326,7 @@ class PrefsRepositoryImpl(
             verboseLogging = Prefs.verboseLogging.read(this),
             burnInHideMs = Prefs.burnInHideMs.read(this),
             progressAnimMs = Prefs.progressAnimMs.read(this),
+            progressUpdateMs = Prefs.progressUpdateMs.read(this),
         )
 
     private fun SharedPreferences.readDarkThemeConfig(): DarkThemeConfig {

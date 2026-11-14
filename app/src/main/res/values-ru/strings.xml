@@ -241,6 +241,8 @@
     <string name="pref_burn_in_hide_summary">Время, пока кольцо остается незамеченным, без каких-либо действий или прогресса</string>
     <string name="pref_progress_anim_title">Плавность прогресса</string>
     <string name="pref_progress_anim_summary">Сколько времени дуга догоняет новый прогресс</string>
+    <string name="pref_progress_update_title">Интервал обновления прогресса</string>
+    <string name="pref_progress_update_summary">Интервал визуального обновления. При значении менее 1000 мс прогнозирует промежуточный прогресс (максимум +2%); фактическая частота зависит от приложения</string>
     <string name="pref_font_size_title">Размер шрифта</string>
     <string name="pref_bold_title">Жирный</string>
     <string name="pref_italic_title">Курсив</string>

@@ -187,7 +187,8 @@ object Prefs {
     // Diagnostics
     val verboseLogging = BoolPref("verbose_logging", false)
     val burnInHideMs = IntPref("burn_in_hide_ms", 15000, 0..120000)
-    val progressAnimMs = IntPref("progress_anim_ms", 250, 0..750)
+    val progressAnimMs = IntPref("progress_anim_ms", 250, 0..2000)
+    val progressUpdateMs = IntPref("progress_update_ms", 1000, 50..1000)
 
     val defaultSupportedPackages: Set<String> =
         setOf(
@@ -373,6 +374,8 @@ object Prefs {
             badgeTextSize,
             powerSaverMode,
             hooksFeedback,
+            progressAnimMs,
+            progressUpdateMs,
         )
 
     // Keys that trigger geometry preview

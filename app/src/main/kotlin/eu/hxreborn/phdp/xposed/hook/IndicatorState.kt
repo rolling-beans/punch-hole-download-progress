@@ -465,6 +465,10 @@ object IndicatorState {
         private set
 
     @Volatile
+    var progressUpdateMs = Prefs.progressUpdateMs.default
+        private set
+
+    @Volatile
     var persistentPreviewActive = false
         private set
 
@@ -577,6 +581,7 @@ object IndicatorState {
             powerSaverMode,
             progressEasing,
             progressAnimMs,
+            progressUpdateMs,
             finishUseFlashColor,
             finishFlashColor,
             finishHoldMs,
@@ -699,6 +704,11 @@ object IndicatorState {
 
             Prefs.progressAnimMs.key -> {
                 progressAnimMs = SettingsPush.int(intent, Prefs.progressAnimMs.default)
+                true
+            }
+
+            Prefs.progressUpdateMs.key -> {
+                progressUpdateMs = SettingsPush.int(intent, Prefs.progressUpdateMs.default)
                 true
             }
 
@@ -1290,6 +1300,10 @@ object IndicatorState {
                     progressAnimMs = Prefs.progressAnimMs.read(prefs)
                 }
 
+                Prefs.progressUpdateMs.key -> {
+                    progressUpdateMs = Prefs.progressUpdateMs.read(prefs)
+                }
+
                 Prefs.badgeOffsets.key -> {
                     badgeOffsets = Prefs.badgeOffsets.read(prefs)
                 }
@@ -1426,6 +1440,7 @@ object IndicatorState {
                 Logger.verboseEnabled = verboseLogging
                 burnInHideMs = Prefs.burnInHideMs.read(prefs)
                 progressAnimMs = Prefs.progressAnimMs.read(prefs)
+                progressUpdateMs = Prefs.progressUpdateMs.read(prefs)
             }
         }.onFailure { log("refresh failed target=indicator-state", it) }
     }

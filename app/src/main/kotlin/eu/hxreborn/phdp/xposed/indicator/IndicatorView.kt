@@ -1,6 +1,5 @@
 package eu.hxreborn.phdp.xposed.indicator
 
-import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ActivityInfo
@@ -21,6 +20,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
+import android.os.SystemClock
 import android.text.TextPaint
 import android.view.DisplayCutout
 import android.view.Surface
@@ -43,6 +43,7 @@ import eu.hxreborn.phdp.xposed.hook.NetworkSpeedMonitor
 import eu.hxreborn.phdp.xposed.hook.SystemUIHook
 import eu.hxreborn.phdp.xposed.indicator.effects.EffectParams
 import eu.hxreborn.phdp.xposed.indicator.effects.FinishDrawContext
+import kotlin.math.abs
 import kotlin.math.pow
 
 class IndicatorView(
@@ -64,6 +65,7 @@ class IndicatorView(
 
     private val animator = IndicatorAnimator(this)
 
+    private val fullRingHoldMs = 24L
     private var downloadStartTime = 0L
     private var pendingFinishRunnable: Runnable? = null
     private var lastActivityTime = 0L
@@ -73,7 +75,69 @@ class IndicatorView(
     internal var windowParams: WindowManager.LayoutParams? = null
     private val burnInHideRunnable = Runnable { invalidate() }
     private var smoothProgress: Float = 0f
-    private var progressAnim: ValueAnimator? = null
+    private val progressMotion = ProgressMotion()
+    private val edgeSweep = ProgressEdgeSweep()
+    private var completionPending = false
+    private var progressUpdateRateMs = IndicatorState.progressUpdateMs
+    private val edgeFrame =
+        object : Runnable {
+            override fun run() {
+                if (!edgeSweep.active) return
+                val now = SystemClock.uptimeMillis()
+                val state = edgeSweep.stateAt(now)
+                smoothProgress = state.position
+                invalidate()
+                if (edgeSweep.isFinished(now)) {
+                    if (edgeSweep.startQueued(now)) {
+                        postOnAnimation(this)
+                        return
+                    }
+                    edgeSweep.cancel()
+                    if (completionPending && progress == 100) {
+                        if (smoothProgress < 0.9999f) {
+                            beginEdgeSweep(1f, ProgressKinematics(smoothProgress), now)
+                        } else {
+                            scheduleFinishAfterSweep()
+                        }
+                    } else if (progress in 1..99) {
+                        progressMotion.reset(
+                            displayPercent = smoothProgress * 100f,
+                            observedPercent = progress.toFloat(),
+                            nowMs = now,
+                            velocityPercentPerSecond = state.velocity * 100_000f,
+                            accelerationPercentPerSecondSquared =
+                                state.acceleration * 100_000_000f,
+                        )
+                        postOnAnimation(progressFrame)
+                    }
+                } else {
+                    postOnAnimation(this)
+                }
+            }
+        }
+    private val progressFrame =
+        object : Runnable {
+            override fun run() {
+                if (edgeSweep.active || completionPending ||
+                    progress !in 1..99 || animator.isFinishAnimating
+                ) {
+                    return
+                }
+                val now = SystemClock.uptimeMillis()
+                val fraction =
+                    progressMotion.frame(
+                        now,
+                        IndicatorState.progressAnimMs,
+                        IndicatorState.progressUpdateMs,
+                        IndicatorState.progressEasing,
+                    )
+                if (abs(fraction - smoothProgress) > 0.000001f) {
+                    smoothProgress = fraction
+                    invalidate()
+                }
+                if (progressMotion.needsFrame(now)) postOnAnimation(this)
+            }
+        }
 
     fun touchActivity() {
         lastActivityTime = System.currentTimeMillis()
@@ -92,24 +156,66 @@ class IndicatorView(
             smoothProgress
         }
 
-    private fun animateProgressTo(target: Int) {
-        val targetFraction = applyEasing(target, IndicatorState.progressEasing)
-        progressAnim?.cancel()
-        val durationMs = IndicatorState.progressAnimMs.toLong()
-        if (durationMs <= 0L) {
-            smoothProgress = targetFraction
-            invalidate()
-            return
+    private fun stopRegularProgressAnimation() {
+        removeCallbacks(progressFrame)
+    }
+
+    private fun stopEdgeSweep() {
+        edgeSweep.cancel()
+        removeCallbacks(edgeFrame)
+    }
+
+    private fun currentKinematics(
+        nowMs: Long,
+        previousProgress: Int,
+    ): ProgressKinematics {
+        if (edgeSweep.active) return edgeSweep.stateAt(nowMs)
+        if (previousProgress in 1..99 && !completionPending &&
+            !animator.isFinishAnimating
+        ) {
+            progressMotion.frame(
+                nowMs,
+                IndicatorState.progressAnimMs,
+                IndicatorState.progressUpdateMs,
+                IndicatorState.progressEasing,
+            )
+            return progressMotion.kinematics()
         }
-        progressAnim =
-            ValueAnimator.ofFloat(smoothProgress, targetFraction).apply {
-                duration = durationMs
-                addUpdateListener {
-                    smoothProgress = it.animatedValue as Float
-                    invalidate()
-                }
-                start()
+        return ProgressKinematics(smoothProgress)
+    }
+
+    private fun beginEdgeSweep(
+        targetFraction: Float,
+        state: ProgressKinematics,
+        nowMs: Long,
+    ) {
+        stopRegularProgressAnimation()
+        stopEdgeSweep()
+        edgeSweep.start(state, targetFraction, nowMs)
+        smoothProgress = state.position
+        invalidate()
+        postOnAnimation(edgeFrame)
+    }
+
+    private fun cancelPendingCompletion() {
+        pendingFinishRunnable?.let { removeCallbacks(it) }
+        pendingFinishRunnable = null
+        completionPending = false
+    }
+
+    private fun scheduleFinishAfterSweep() {
+        if (!completionPending || progress != 100) return
+        val elapsed = System.currentTimeMillis() - downloadStartTime
+        val remaining = if (downloadStartTime > 0L) minVisibilityMs - elapsed else 0L
+        // Give SystemUI at least one VSYNC to actually draw the full 100% ring.
+        val delayMs = maxOf(remaining, fullRingHoldMs).coerceAtLeast(0L)
+        pendingFinishRunnable?.let { removeCallbacks(it) }
+        pendingFinishRunnable =
+            Runnable {
+                pendingFinishRunnable = null
+                if (completionPending && progress == 100) startFinishAnimation()
             }
+        postDelayed(pendingFinishRunnable, delayMs)
     }
 
     private val minVisibilityMs: Long
@@ -169,54 +275,86 @@ class IndicatorView(
     var progress: Int = 0
         set(value) {
             val newValue = value.coerceIn(0, 100)
-            if (field != newValue) {
-                val oldValue = field
-                field = newValue
-                touchActivity()
-                animateProgressTo(newValue)
-                logDebug { "IndicatorView: progress = $newValue" }
+            // The hook emits 100%, then an empty average (0%) when removing the
+            // completed notification. Preserve the terminal sweep/effect until done.
+            if (newValue == 0 && (completionPending || animator.isFinishAnimating)) return
+            if (field == newValue) return
 
-                if (oldValue == 0 && newValue > 0) {
-                    downloadStartTime = System.currentTimeMillis()
-                    pendingFinishRunnable?.let { removeCallbacks(it) }
-                    pendingFinishRunnable = null
-                }
-
-                when (newValue) {
-                    100 -> {
-                        if (!animator.isFinishAnimating) {
-                            val elapsed = System.currentTimeMillis() - downloadStartTime
-                            val remaining = minVisibilityMs - elapsed
-                            if (remaining > 0 && downloadStartTime > 0) {
-                                logDebug {
-                                    "IndicatorView: fast download, delaying finish by ${remaining}ms"
-                                }
-                                pendingFinishRunnable =
-                                    Runnable {
-                                        pendingFinishRunnable = null
-                                        startFinishAnimation()
-                                    }
-                                postDelayed(pendingFinishRunnable, remaining)
-                            } else {
-                                startFinishAnimation()
-                            }
-                        }
-                    }
-
-                    in 1..99 -> {
-                        if (animator.isFinishAnimating) {
-                            animator.cancelFinish()
-                        }
-                    }
-
-                    0 -> {
-                        downloadStartTime = 0L
-                        pendingFinishRunnable?.let { removeCallbacks(it) }
-                        pendingFinishRunnable = null
-                    }
-                }
-                post { invalidate() }
+            val oldValue = field
+            val now = SystemClock.uptimeMillis()
+            val motionState = currentKinematics(now, oldValue)
+            val interruptedCompletion =
+                newValue in 1..99 && (completionPending || animator.isFinishAnimating)
+            if (interruptedCompletion) {
+                cancelPendingCompletion()
+                animator.cancelFinish()
             }
+
+            field = newValue
+            touchActivity()
+            val newSession = (oldValue == 0 && newValue > 0) || interruptedCompletion
+            if (newSession) {
+                downloadStartTime = System.currentTimeMillis()
+                cancelPendingCompletion()
+            }
+
+            when {
+                newValue == 100 -> {
+                    completionPending = true
+                    if (edgeSweep.active) {
+                        edgeSweep.retarget(1f, now)
+                        postOnAnimation(edgeFrame)
+                    } else if (oldValue in 1..99 &&
+                        progressMotion.handoffTo(edgeSweep, now)
+                    ) {
+                        // Keep the already bounded quintic segment instead of
+                        // rebuilding an unsafe trajectory from moving x, v, a.
+                        stopRegularProgressAnimation()
+                        smoothProgress = edgeSweep.stateAt(now).position
+                        edgeSweep.retarget(1f, now)
+                        postOnAnimation(edgeFrame)
+                    } else {
+                        beginEdgeSweep(1f, motionState, now)
+                    }
+                }
+
+                newValue == 0 -> {
+                    stopRegularProgressAnimation()
+                    stopEdgeSweep()
+                    smoothProgress = 0f
+                    progressMotion.reset(nowMs = now)
+                    downloadStartTime = 0L
+                    cancelPendingCompletion()
+                }
+
+                newSession -> {
+                    if (edgeSweep.active) {
+                        // Interruption by a new download also preserves the
+                        // currently moving trajectory and its speed ceiling.
+                        edgeSweep.retarget(newValue / 100f, now)
+                        postOnAnimation(edgeFrame)
+                    } else {
+                        val initialState =
+                            if (oldValue == 0) ProgressKinematics(0f) else motionState
+                        beginEdgeSweep(newValue / 100f, initialState, now)
+                    }
+                }
+
+                edgeSweep.active -> {
+                    // A new observation starts from the instantaneous x, v and a,
+                    // not a new zero-velocity tween. Unsafe replans are queued.
+                    edgeSweep.retarget(newValue / 100f, now)
+                    postOnAnimation(edgeFrame)
+                }
+
+                else -> {
+                    progressMotion.observe(newValue, now)
+                    removeCallbacks(progressFrame)
+                    postOnAnimation(progressFrame)
+                }
+            }
+            logDebug { "IndicatorView: progress = $newValue" }
+            post { invalidate() }
         }
 
     @Volatile
@@ -325,7 +463,16 @@ class IndicatorView(
                 updatePaintFromPrefs()
                 updateRenderer()
                 recalculateScaledPath()
-                smoothProgress = applyEasing(progress, IndicatorState.progressEasing)
+                val newRate = IndicatorState.progressUpdateMs
+                if (newRate != progressUpdateRateMs) {
+                    removeCallbacks(progressFrame)
+                    progressUpdateRateMs = newRate
+                    // The third-order controller holds x, v and a across a rate
+                    // change, and the quintic edge controller is left untouched.
+                    if (progress in 1..99 && !edgeSweep.active && !completionPending) {
+                        postOnAnimation(progressFrame)
+                    }
+                }
                 invalidate()
             }
         }
@@ -593,10 +740,9 @@ class IndicatorView(
         log("IndicatorView: onDetachedFromWindow()")
         unregisterHingeListener()
         animator.cancelAll()
-        progressAnim?.cancel()
-        progressAnim = null
-        pendingFinishRunnable?.let { removeCallbacks(it) }
-        pendingFinishRunnable = null
+        removeCallbacks(progressFrame)
+        stopEdgeSweep()
+        cancelPendingCompletion()
         removeCallbacks(burnInHideRunnable)
         iconPainter.recycle()
         IndicatorState.onPrefsChanged = null
@@ -726,6 +872,7 @@ class IndicatorView(
     }
 
     private fun startFinishAnimation() {
+        completionPending = false
         animator.startFinish(EffectParams.fromState()) { progress = 0 }
     }
 
@@ -783,6 +930,7 @@ class IndicatorView(
                 animator.isGeometryPreviewActive -> true
                 animator.isPreviewAnimating -> true
                 effectiveProgress in 1..99 -> !isBurnInHidden
+                completionPending -> true
                 pendingFinishRunnable != null -> true
                 else -> false
             }
@@ -798,8 +946,8 @@ class IndicatorView(
             animatedPaint.strokeCap = strokeCap
 
             val isActiveProgress =
-                effectiveProgress in 1..99 || animator.isGeometryPreviewActive ||
-                    animator.isPreviewAnimating
+                effectiveProgress in 1..99 || completionPending ||
+                    animator.isGeometryPreviewActive || animator.isPreviewAnimating
             val showBackgroundRing =
                 IndicatorState.backgroundRingEnabled && !animator.isFinishAnimating &&
                     !animator.isErrorAnimating &&
