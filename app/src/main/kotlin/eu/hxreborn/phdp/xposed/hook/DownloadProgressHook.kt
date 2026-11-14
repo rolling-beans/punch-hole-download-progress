@@ -129,16 +129,20 @@ object DownloadProgressHook {
                 lastUpdate = System.currentTimeMillis(),
             )
 
+        if (percent == 100) {
+            // Exclude the completed notification from the aggregate before
+            // publishing a progress update. Otherwise remaining downloads
+            // briefly include an artificial 100% sample.
+            activeDownloads.remove(id)
+            reportTrackedCompletion(pkg, "100-percent")
+            return
+        }
+
         if (oldState?.progress != percent) {
             activeDownloads[id] = newState
             logDebug { "progress pkg=$pkg percent=$percent" }
             updateProgress()
             if (wasNew) onActiveCountChanged?.invoke(activeDownloads.size)
-        }
-
-        if (percent == 100) {
-            activeDownloads.remove(id)
-            reportTrackedCompletion(pkg, "100-percent")
         }
     }
 
@@ -153,11 +157,14 @@ object DownloadProgressHook {
         val remaining = activeDownloads.size
         logDebug { "download completed pkg=$pkg source=$source remaining=$remaining" }
         onActiveCountChanged?.invoke(remaining)
-        if (remaining == 0) {
-            onProgressChanged?.invoke(100)
-            onDownloadComplete?.invoke()
-        }
-        updateProgress()
+        DownloadRemovalPolicy.dispatchCompleted(
+            remainingDownloads = remaining,
+            updateRemainingProgress = ::updateProgress,
+            reportComplete = {
+                onProgressChanged?.invoke(100)
+                onDownloadComplete?.invoke()
+            },
+        )
     }
 
     private fun updateProgress() {
