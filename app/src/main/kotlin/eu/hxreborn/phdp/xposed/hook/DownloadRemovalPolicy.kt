@@ -44,8 +44,11 @@ internal object DownloadRemovalPolicy {
                 // A completed notification does not complete the aggregate if
                 // other downloads are still tracked. Otherwise SystemUI sees
                 // 100% -> remaining average -> 100% after the next completion.
-                if (remainingDownloads == 0) reportComplete()
-                updateRemainingProgress()
+                dispatchCompleted(
+                    remainingDownloads = remainingDownloads,
+                    updateRemainingProgress = updateRemainingProgress,
+                    reportComplete = reportComplete,
+                )
             }
 
             lastPercent >= LOW_PROGRESS_THRESHOLD -> {
@@ -57,6 +60,19 @@ internal object DownloadRemovalPolicy {
                 updateRemainingProgress()
             }
         }
+    }
+
+    /**
+     * Shared by explicit 100%, max=0 and successful notification removal.
+     * Never pulse an aggregate ring to 100% when other downloads remain.
+     */
+    fun dispatchCompleted(
+        remainingDownloads: Int,
+        updateRemainingProgress: () -> Unit,
+        reportComplete: () -> Unit,
+    ) {
+        if (remainingDownloads == 0) reportComplete()
+        updateRemainingProgress()
     }
 
     private const val REASON_APP_CANCEL = 8
