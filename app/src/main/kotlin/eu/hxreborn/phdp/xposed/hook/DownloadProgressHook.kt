@@ -102,10 +102,7 @@ object DownloadProgressHook {
             ) ?: run {
                 // some browsers use max=0 as a completion signal rather than removing the notification
                 activeDownloads.remove(id)?.let {
-                    logDebug { "complete download pkg=${it.packageName} source=max-zero" }
-                    onActiveCountChanged?.invoke(activeDownloads.size)
-                    onDownloadComplete?.invoke()
-                    updateProgress()
+                    reportTrackedCompletion(it.packageName, "max-zero")
                 }
                 return
             }
@@ -141,10 +138,26 @@ object DownloadProgressHook {
 
         if (percent == 100) {
             activeDownloads.remove(id)
-            onActiveCountChanged?.invoke(activeDownloads.size)
-            onDownloadComplete?.invoke()
-            updateProgress()
+            reportTrackedCompletion(pkg, "100-percent")
         }
+    }
+
+    /**
+     * An individual notification may complete while others remain active.
+     * Only the final tracked completion can start the terminal ring effect.
+     */
+    private fun reportTrackedCompletion(
+        pkg: String,
+        source: String,
+    ) {
+        val remaining = activeDownloads.size
+        logDebug { "download completed pkg=$pkg source=$source remaining=$remaining" }
+        onActiveCountChanged?.invoke(remaining)
+        if (remaining == 0) {
+            onProgressChanged?.invoke(100)
+            onDownloadComplete?.invoke()
+        }
+        updateProgress()
     }
 
     private fun updateProgress() {
@@ -303,6 +316,7 @@ object DownloadProgressHook {
             packageName = pkg,
             lastPercent = wasTracking.progress,
             reason = reason,
+            remainingDownloads = activeDownloads.size,
             updateRemainingProgress = ::updateProgress,
             reportComplete = {
                 logDebug {
