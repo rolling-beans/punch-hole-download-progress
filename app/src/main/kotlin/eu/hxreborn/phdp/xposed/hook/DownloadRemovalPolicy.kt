@@ -28,6 +28,7 @@ internal object DownloadRemovalPolicy {
         packageName: String,
         lastPercent: Int,
         reason: Int,
+        remainingDownloads: Int,
         updateRemainingProgress: () -> Unit,
         reportComplete: () -> Unit,
         reportCancelled: () -> Unit,
@@ -40,7 +41,10 @@ internal object DownloadRemovalPolicy {
             lastPercent >= 100 ||
                 reason == REASON_APP_CANCEL ||
                 reason == REASON_APP_CANCEL_ALL -> {
-                reportComplete()
+                // A completed notification does not complete the aggregate if
+                // other downloads are still tracked. Otherwise SystemUI sees
+                // 100% -> remaining average -> 100% after the next completion.
+                if (remainingDownloads == 0) reportComplete()
                 updateRemainingProgress()
             }
 
