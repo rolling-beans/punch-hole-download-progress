@@ -29,6 +29,7 @@ class DownloadRemovalPolicyTest {
             packageName = "org.mozilla.firefox",
             lastPercent = 65,
             reason = 8,
+            remainingDownloads = 0,
             updateRemainingProgress = { events += "progress=0" },
             reportComplete = {
                 events += "progress=100"
@@ -47,6 +48,7 @@ class DownloadRemovalPolicyTest {
                 packageName = "com.android.chrome",
                 lastPercent = 100,
                 reason = reason,
+                remainingDownloads = 0,
                 updateRemainingProgress = { events += "progress=0" },
                 reportComplete = { events += "progress=100" },
                 reportCancelled = { events += "cancelled" },
@@ -65,6 +67,7 @@ class DownloadRemovalPolicyTest {
             packageName = "eu.hxreborn.downloadsim",
             lastPercent = 65,
             reason = 8,
+            remainingDownloads = 0,
             updateRemainingProgress = { events += "progress=0" },
             reportComplete = { events += "complete" },
             reportCancelled = { events += "cancelled" },
@@ -79,6 +82,7 @@ class DownloadRemovalPolicyTest {
             packageName = "org.mozilla.firefox",
             lastPercent = 55,
             reason = 1,
+            remainingDownloads = 0,
             updateRemainingProgress = { events += "progress=0" },
             reportComplete = { events += "complete" },
             reportCancelled = { events += "cancelled" },
@@ -93,10 +97,55 @@ class DownloadRemovalPolicyTest {
             packageName = "com.android.chrome",
             lastPercent = 2,
             reason = -1,
+            remainingDownloads = 0,
             updateRemainingProgress = { events += "progress=0" },
             reportComplete = { events += "complete" },
             reportCancelled = { events += "cancelled" },
         )
         assertTrue(events == listOf("progress=0"))
     }
+    @Test
+    fun `first of multiple completed downloads does not trigger terminal sweep`() {
+        val events = mutableListOf<String>()
+        DownloadRemovalPolicy.dispatchCompleted(
+            remainingDownloads = 1,
+            updateRemainingProgress = { events += "progress=50" },
+            reportComplete = { events += "complete=100" },
+        )
+        assertTrue(events == listOf("progress=50"))
+
+        DownloadRemovalPolicy.dispatchCompleted(
+            remainingDownloads = 0,
+            updateRemainingProgress = { events += "progress=0" },
+            reportComplete = { events += "complete=100" },
+        )
+        assertTrue(events == listOf("progress=50", "complete=100", "progress=0"))
+    }
+
+    @Test
+    fun `successful removal of a nonfinal download never resets ring through 100 percent`() {
+        val events = mutableListOf<String>()
+        DownloadRemovalPolicy.dispatch(
+            packageName = "org.mozilla.firefox",
+            lastPercent = 96,
+            reason = 8,
+            remainingDownloads = 1,
+            updateRemainingProgress = { events += "remaining=50" },
+            reportComplete = { events += "complete=100" },
+            reportCancelled = { events += "cancelled" },
+        )
+        assertTrue(events == listOf("remaining=50"))
+    }
+
+    @Test
+    fun `one hundred percent notification with other active downloads stays below full ring`() {
+        val events = mutableListOf<String>()
+        DownloadRemovalPolicy.dispatchCompleted(
+            remainingDownloads = 2,
+            updateRemainingProgress = { events += "remaining=45" },
+            reportComplete = { events += "complete=100" },
+        )
+        assertTrue(events == listOf("remaining=45"))
+    }
+
 }
