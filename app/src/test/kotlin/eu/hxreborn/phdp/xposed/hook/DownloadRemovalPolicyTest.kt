@@ -104,6 +104,7 @@ class DownloadRemovalPolicyTest {
         )
         assertTrue(events == listOf("progress=0"))
     }
+
     @Test
     fun `first of multiple completed downloads does not trigger terminal sweep`() {
         val events = mutableListOf<String>()
@@ -147,5 +148,4 @@ class DownloadRemovalPolicyTest {
         )
         assertTrue(events == listOf("remaining=45"))
     }
-
 }
