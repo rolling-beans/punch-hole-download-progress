@@ -7,6 +7,8 @@
         android:protectionLevel="signature" />
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Include installed packages without launcher activities (e.g. system updaters). -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="eu.hxreborn.phdp.permission.PUSH_SETTINGS" />
 
     <queries>
